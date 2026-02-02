@@ -1,0 +1,129 @@
+{
+  "config": {
+    "step": {
+      "init": {
+        "description": "Wybierz sposób połączenia z urządzeniem.",
+        "data": {
+          "discovery_mode": "Tryb wykrywania"
+        }
+      },
+      "auto": {
+        "title": "Automatyczne wykrywanie",
+        "description": "Skonfiguruj urządzenie używając automatycznego wykrywania na podstawie MAC.",
+        "data": {
+          "device_type": "Typ urządzenia",
+          "mac": "Adres MAC",
+          "slave": "Modbus Slave ID",
+          "scan_interval": "Częstotliwość aktualizacji (sekundy)"
+        }
+      },
+      "manual": {
+        "title": "Konfiguracja ręczna",
+        "description": "Skonfiguruj urządzenie używając ręcznego adresu IP.",
+        "data": {
+          "device_type": "Typ urządzenia",
+          "host": "Host (statyczny adres IP)",
+          "port": "Port",
+          "slave": "Modbus Slave ID",
+          "scan_interval": "Częstotliwość aktualizacji (sekundy)"
+        }
+      }
+    },
+
+    "error": {
+      "error_invalid_mac": "Nieprawidłowy adres MAC: {{ value }}",
+      "error_empty_mac": "Adres MAC nie może być pusty",
+      "error_mac_length": "Adres MAC musi mieć 12 znaków szesnastkowych: {{ value }}",
+      "error_invalid_mac_format": "Nieprawidłowy format MAC: {{ mac }}",
+      "cannot_connect": "Nie można połączyć się z urządzeniem",
+      "unknown": "Wystąpił nieznany błąd"
+    },
+
+    "abort": {
+      "already_configured": "To urządzenie jest już skonfigurowane"
+    }
+  },
+
+  "selector": {
+    "discovery_mode": {
+      "options": {
+        "auto": "Automatyczne wykrywanie (po adresie MAC)",
+        "manual": "Konfiguracja ręczna (IP - statyczny)"
+      }
+    }
+  },
+
+  "entity": {
+    "sensor": {
+      "supply_airflow": { "name": "Przepływ nawiewu" },
+      "extract_airflow": { "name": "Przepływ wywiewu" },
+      "supply_fan_speed": { "name": "Bieg nawiewu" },
+      "extract_fan_speed": { "name": "Bieg wywiewu" },
+      "outdoor_temp": { "name": "Temperatura zewnętrzna" },
+      "exhaust_temp": { "name": "Temperatura wyrzutu" },
+      "supply_temp": { "name": "Temperatura nawiewu" },
+      "extract_temp": { "name": "Temperatura wywiewu" },
+      "extra_temp": { "name": "Dodatkowa temperatura" },
+
+      "filter_wear_status": { "name": "Zużycie filtra" }
+    },
+    "binary_sensor": {
+      "ghe": { "name": "GWC" },
+      "summer_bypass": { "name": "Bypass letni" },
+      "humidifier": { "name": "Nawilżacz" },
+      "heater": { "name": "Nagrzewnica" },
+      "cooler": { "name": "Chłodzenie" },
+      "vacation": { "name": "Urlop" },
+      "frost_protection": { "name": "Antyzamarzanie" },
+      "primary_heater": { "name": "Nagrzewnica pierwotna" },
+      "zone_damper": { "name": "Przepustnica strefowa" },
+
+      "connection_status": { "name": "Status połączenia" },
+
+      "extract_fan_error": { "name": "Błąd wentylatora wywiewu" },
+      "supply_fan_error": { "name": "Błąd wentylatora nawiewu" },
+      "outdoor_temp_sensor_error": { "name": "Błąd czujnika temperatury zewnętrznej" },
+      "extract_temp_sensor_error": { "name": "Błąd czujnika temperatury wywiewu" },
+      "supply_temp_sensor_error": { "name": "Błąd czujnika temperatury nawiewu" },
+      "exhaust_temp_sensor_error": { "name": "Błąd czujnika temperatury wyrzutu" },
+      "humidifier_temp_sensor_error": { "name": "Błąd czujnika temperatury nawilżacza" },
+      "extra_outdoor_temp_sensor_error": { "name": "Błąd dodatkowego czujnika temperatury zewnętrznej" },
+      "extra_supply_temp_sensor_error": { "name": "Błąd dodatkowego czujnika temperatury nawiewu" },
+      "extract_air_pressure_sensor_error": { "name": "Błąd czujnika ciśnienia powietrza wywiewu" },
+      "supply_air_pressure_sensor_error": { "name": "Błąd czujnika ciśnienia powietrza nawiewu" },
+
+      "humidifier_func_enabled": { "name": "Funkcja nawilżacza aktywna" },
+      "xf_func_enabled": { "name": "Funkcja XF aktywna" },
+      "ghe_func_enabled": { "name": "Funkcja GWC aktywna" },
+      "cooler_func_enabled": { "name": "Funkcja chłodzenia aktywna" },
+      "heater_func_enabled": { "name": "Funkcja nagrzewnicy aktywna" },
+      "zone_damper_func_enabled": { "name": "Funkcja przepustnicy strefowej aktywna" },
+      "extra_supply_temp_enabled": { "name": "Dodatkowa temp nawiewu aktywna" },
+      "extra_outdoor_temp_enabled": { "name": "Dodatkowa temp zewnętrzna aktywna" }
+    },
+    "switch": {
+      "ghe_mode": { "name": "Funkcja GWC" },
+      "summer_bypass_mode": { "name": "Funkcja bypassu letniego" },
+      "humidifier_mode": { "name": "Funkcja nawilżacza" },
+      "zone_damper_mode": { "name": "Funkcja przepustnicy strefowej" }
+    },
+    "number": {
+      "heater_mode": { "name": "Funkcja nagrzewnicy" },
+      "cooler_mode": { "name": "Funkcja chłodzenia" },
+      "vacation_mode": { "name": "Funkcja urlop" },
+      "fireplace_mode": { "name": "Funkcja kominek" },
+      "party_mode": { "name": "Funkcja impreza" },
+      "speed1_airflow": { "name": "Przepływ biegu 1" },
+      "speed2_airflow": { "name": "Przepływ biegu 2" },
+      "speed3_airflow": { "name": "Przepływ biegu 3" },
+      "manual_fan_speed": { "name": "Ręczny bieg wentylatora" },
+      "manual_comfort_temp": { "name": "Ręczna temperatura komfortu" }
+    },
+    "time": {
+      "device_time": { "name": "Czas urządzenia" }
+    },
+    "date": {
+      "device_date": { "name": "Data urządzenia" }
+    }
+  }
+}

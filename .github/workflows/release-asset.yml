@@ -1,0 +1,30 @@
+name: Create Release Asset
+
+on:
+  release:
+    types: [published, prereleased]
+
+permissions: {}
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Create ZIP for HACS
+        shell: bash
+        run: |
+          mkdir -p dist
+          cd custom_components/wanas
+          zip -r ../../dist/wanas.zip .
+
+      - name: Upload ZIP to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/wanas.zip

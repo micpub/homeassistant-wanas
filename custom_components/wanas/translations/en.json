@@ -1,0 +1,139 @@
+{
+  "config": {
+    "step": {
+      "init": {
+        "description": "Choose how Home Assistant should find your device.",
+        "data": {
+          "discovery_mode": "Discovery Mode"
+        }
+      },
+      "auto": {
+        "title": "Automatic Discovery",
+        "description": "Configure the device using automatic MAC-based discovery.",
+        "data": {
+          "device_type": "Device Type",
+          "mac": "MAC Address",
+          "slave": "Modbus Slave ID",
+          "scan_interval": "Update Interval (seconds)"
+        }
+      },
+      "manual": {
+        "title": "Manual Configuration",
+        "description": "Configure the device using a manual IP address.",
+        "data": {
+          "device_type": "Device Type",
+          "host": "Host (Static IP Address)",
+          "port": "Port",
+          "slave": "Modbus Slave ID",
+          "scan_interval": "Update Interval (seconds)"
+        }
+      }
+    },
+
+    "error": {
+      "error_invalid_mac": "Invalid MAC address: {{ value }}",
+      "error_empty_mac": "MAC address cannot be empty",
+      "error_mac_length": "MAC address must have 12 hexadecimal digits: {{ value }}",
+      "error_invalid_mac_format": "Invalid MAC format: {{ mac }}",
+      "cannot_connect": "Unable to connect to device",
+      "unknown": "Unknown error occurred"
+    },
+
+    "abort": {
+      "already_configured": "This device is already configured"
+    }
+  },
+
+  "selector": {
+    "discovery_mode": {
+      "options": {
+        "auto": "Automatic discovery (via MAC address)",
+        "manual": "Manual configuration (IP - static)"
+      }
+    }
+  },
+
+  "entity": {
+    "sensor": {
+      "supply_airflow": { "name": "Supply airflow" },
+      "extract_airflow": { "name": "Extract airflow" },
+      "supply_fan_speed": { "name": "Supply fan speed" },
+      "extract_fan_speed": { "name": "Extract fan speed" },
+      "outdoor_temp": { "name": "Outdoor temperature" },
+      "exhaust_temp": { "name": "Exhaust temperature" },
+      "supply_temp": { "name": "Supply temperature" },
+      "extract_temp": { "name": "Extract temperature" },
+      "extra_temp": { "name": "Extra temperature" },
+
+      "filter_wear_status": { "name": "Filter wear" }
+    },
+    "binary_sensor": {
+      "ghe": { "name": "GHE" },
+      "summer_bypass": { "name": "Summer bypass" },
+      "humidifier": { "name": "Humidifier" },
+      "heater": { "name": "Heater" },
+      "cooler": { "name": "Cooler" },
+      "vacation": { "name": "Vacation" },
+      "frost_protection": { "name": "Frost protection" },
+      "primary_heater": { "name": "Primary heater" },
+      "zone_damper": { "name": "Zone damper" },
+
+      "connection_status": { "name": "Connection status" },
+
+      "extract_fan_error": { "name": "Extract fan error" },
+      "supply_fan_error": { "name": "Supply fan error" },
+      "outdoor_temp_sensor_error": { "name": "Outdoor temp sensor error" },
+      "extract_temp_sensor_error": { "name": "Extract temp sensor error" },
+      "supply_temp_sensor_error": { "name": "Supply temp sensor error" },
+      "exhaust_temp_sensor_error": { "name": "Exhaust temp sensor error" },
+      "humidifier_temp_sensor_error": {
+        "name": "Humidifier temp sensor error"
+      },
+      "extra_outdoor_temp_sensor_error": {
+        "name": "Extra outdoor temp sensor error"
+      },
+      "extra_supply_temp_sensor_error": {
+        "name": "Extra supply temp sensor error"
+      },
+      "extract_air_pressure_sensor_error": {
+        "name": "Extract air pressure sensor error"
+      },
+      "supply_air_pressure_sensor_error": {
+        "name": "Supply air pressure sensor error"
+      },
+
+      "humidifier_func_enabled": { "name": "Humidifier function enabled" },
+      "xf_func_enabled": { "name": "XF function enabled" },
+      "ghe_func_enabled": { "name": "GHE function enabled" },
+      "cooler_func_enabled": { "name": "Cooler function enabled" },
+      "heater_func_enabled": { "name": "Heater function enabled" },
+      "zone_damper_func_enabled": { "name": "Zone damper function enabled" },
+      "extra_supply_temp_enabled": { "name": "Extra supply temp enabled" },
+      "extra_outdoor_temp_enabled": { "name": "Extra outdoor temp enabled" }
+    },
+    "switch": {
+      "ghe_mode": { "name": "GHE mode" },
+      "summer_bypass_mode": { "name": "Summer bypass mode" },
+      "humidifier_mode": { "name": "Humidifier mode" },
+      "zone_damper_mode": { "name": "Zone damper mode" }
+    },
+    "number": {
+      "heater_mode": { "name": "Heater mode" },
+      "cooler_mode": { "name": "Cooler mode" },
+      "vacation_mode": { "name": "Vacation mode" },
+      "fireplace_mode": { "name": "Fireplace mode" },
+      "party_mode": { "name": "Party mode" },
+      "speed1_airflow": { "name": "Speed1 airflow" },
+      "speed2_airflow": { "name": "Speed2 airflow" },
+      "speed3_airflow": { "name": "Speed3 airflow" },
+      "manual_fan_speed": { "name": "Manual fan speed" },
+      "manual_comfort_temp": { "name": "Manual comfort temp" }
+    },
+    "time": {
+      "device_time": { "name": "Device time" }
+    },
+    "date": {
+      "device_date": { "name": "Device date" }
+      }
+  }
+}
