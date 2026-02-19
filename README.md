@@ -2,54 +2,6 @@
 [![GitHub Release](https://img.shields.io/github/v/release/micpub/homeassistant-wanas?style=for-the-badge)](https://github.com/micpub/homeassistant-wanas/releases)
 
 
-# Integracja Home Assistant dla rekuperatorów Wanas ze sterownikiem "Display V2"
-
-## Główne funkcje
-
-- Wbudowana **dedykowana karta Lovelace** – czytelna, intuicyjna i skondensowana wizualizacja stanu rekuperatora wraz ze sterowaniem (zdjęcia poniżej)
-- Pełna komunikacja w czasie rzeczywistym (odświeżanie danych domyślnie co 5 sekund – konfigurowalne)
-- Komunikacja odbywa się poprzez bramkę WiFi / Ethernet (Modbus TCP ↔ Modbus RTU)
-  - Dedykowane wsparcie dla bramek **Waveshare** – wystarczy podać adres MAC, a integracja automatycznie wyszuka urządzenie w sieci LAN i nawiąże z nim połączenie
-  - Możliwość ręcznej konfiguracji IP + portu dla bramek innych producentów
-- Wyświetlanie aktualnych błędów rekuperatora
-- Konfiguracja przez graficzny interfejs użytkownika **Config Flow** (bez edycji yaml)
-- Pełne wsparcie dla **HACS**
-
-
-## Dedykowana karta Lovelace
-
-Autorska karta Lovelace pokazuje najważniejsze informacje o rekuperatorze w czytelny i zwarty sposób oraz umożliwia szybkie sterowanie.
-
-Automatycznie wyświetla wyłącznie funkcje aktywne w menu serwisowym urządzenia – dzięki temu interfejs pozostaje przejrzysty i wolny od zbędnych elementów.
-
-Na karcie znajdziesz:
-
-- **Błędy** – aktualne komunikaty o problemach
-- **Aktualny stan** – obroty wentylatorów, temperatury, aktywne tryby i moduły
-- **Ustawienia** – szybka zmiana trybów i funkcji
-
-
-## Wymagania
-
-- Home Assistant
-- Bramka WiFi/Ethernet (Modbus TCP ↔ Modbus RTU) - np. Waveshare RS232/485 TO WIFI POE ETH (B)
-- Rekuperator Wanas ze sterownikiem **Display V2**
-- Urządzenie z bramką musi być w tej samej sieci LAN co Home Assistant
-
-
-## Instalacja
-
-### Sposób zalecany – przez HACS (najprostszy)
-
-1. Zainstaluj integrację **Wanas**
-2. Zrestartuj Home Assistant
-3. Przejdź do `Ustawienia → Urządzenia oraz usługi → Dodaj integrację`
-4. Wybierz **Wanas** i skonfiguruj
-
-
----
-
-
 # Home Assistant integration for Wanas heat recovery ventilators (HRV) with "Display V2" controller
 
 ## Main features
@@ -98,10 +50,58 @@ On the card you will find:
 ---
 
 
-# Zrzuty ekranu / Screenshoots
+# Integracja Home Assistant dla rekuperatorów Wanas ze sterownikiem "Display V2"
+
+## Główne funkcje
+
+- Wbudowana **dedykowana karta Lovelace** – czytelna, intuicyjna i skondensowana wizualizacja stanu rekuperatora wraz ze sterowaniem (zdjęcia poniżej)
+- Pełna komunikacja w czasie rzeczywistym (odświeżanie danych domyślnie co 5 sekund – konfigurowalne)
+- Komunikacja odbywa się poprzez bramkę WiFi / Ethernet (Modbus TCP ↔ Modbus RTU)
+  - Dedykowane wsparcie dla bramek **Waveshare** – wystarczy podać adres MAC, a integracja automatycznie wyszuka urządzenie w sieci LAN i nawiąże z nim połączenie
+  - Możliwość ręcznej konfiguracji IP + portu dla bramek innych producentów
+- Wyświetlanie aktualnych błędów rekuperatora
+- Konfiguracja przez graficzny interfejs użytkownika **Config Flow** (bez edycji yaml)
+- Pełne wsparcie dla **HACS**
+
+
+## Dedykowana karta Lovelace
+
+Autorska karta Lovelace pokazuje najważniejsze informacje o rekuperatorze w czytelny i zwarty sposób oraz umożliwia szybkie sterowanie.
+
+Automatycznie wyświetla wyłącznie funkcje aktywne w menu serwisowym urządzenia – dzięki temu interfejs pozostaje przejrzysty i wolny od zbędnych elementów.
+
+Na karcie znajdziesz:
+
+- **Błędy** – aktualne komunikaty o problemach
+- **Aktualny stan** – obroty wentylatorów, temperatury, aktywne tryby i moduły
+- **Ustawienia** – szybka zmiana trybów i funkcji
+
+
+## Wymagania
+
+- Home Assistant
+- Bramka WiFi/Ethernet (Modbus TCP ↔ Modbus RTU) - np. Waveshare RS232/485 TO WIFI POE ETH (B)
+- Rekuperator Wanas ze sterownikiem **Display V2**
+- Urządzenie z bramką musi być w tej samej sieci LAN co Home Assistant
+
+
+## Instalacja
+
+### Sposób zalecany – przez HACS (najprostszy)
+
+1. Zainstaluj integrację **Wanas**
+2. Zrestartuj Home Assistant
+3. Przejdź do `Ustawienia → Urządzenia oraz usługi → Dodaj integrację`
+4. Wybierz **Wanas** i skonfiguruj
+
+
+---
+
+
+# Screenshoots / Zrzuty ekranu
 
 <div style="max-width: 800px; margin: 0 auto; text-align: center;">
-  <img src="https://raw.githubusercontent.com/micpub/homeassistant-wanas/main/images/pl_light_mobile_app.jpg" width="49%">
-  <span style="display:inline-block; width:1%;"></span>
   <img src="https://raw.githubusercontent.com/micpub/homeassistant-wanas/main/images/en_dark_mobile_app.jpg"   width="49%">
+  <span style="display:inline-block; width:1%;"></span>
+  <img src="https://raw.githubusercontent.com/micpub/homeassistant-wanas/main/images/pl_light_mobile_app.jpg" width="49%">
 </div>

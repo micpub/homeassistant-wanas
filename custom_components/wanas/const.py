@@ -35,5 +35,5 @@ PLATFORMS = (
 
 URL_BASE = "/wanas"
 WANAS_CARDS = [
-    {"name": "Wanas Cards", "filename": "wanas-vent-card.js", "version": "0.1.2"}
+    {"name": "Wanas Cards", "filename": "wanas-vent-card.js", "version": "0.1.3"}
 ]
