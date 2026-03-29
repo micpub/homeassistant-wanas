@@ -2,12 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
-import socket
 from dataclasses import dataclass
 from datetime import timedelta, datetime
 from typing import Any, Callable, Dict, Awaitable
-from urllib.parse import urlparse
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import (
@@ -125,71 +122,6 @@ class GatewayDiscoveryManager:
         self._send_broadcast_cancel: CALLBACK_TYPE | None = None
         self._starting: bool = False
 
-    def _get_local_ip(self) -> str:
-        """
-        Return the local IP/address Home Assistant is bound to.
-        Returns real IPs when available, otherwise localhost/127.0.0.1/::1.
-        The result is returned exactly as-is (no replacement with 'localhost').
-        """
-        try:
-            url = get_url(
-                hass=self.hass,
-                require_current_request=False,
-                require_ssl=False,
-                require_standard_port=False,
-                allow_internal=True,
-                allow_external=False,
-                allow_cloud=False,
-                allow_ip=True,
-                prefer_external=False,
-                prefer_cloud=False,
-            )
-            host = urlparse(url).hostname
-            if host:
-                return host
-        except Exception as e:
-            _LOGGER.debug("get_url failed while determining local IP: %s", e)
-
-        # fallback: try to connect to something external to force the kernel
-        # to choose a source address (works for both IPv4 and IPv6)
-        try:
-            # 8.8.8.8 is just a well-known address that doesn't need to respond
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.settimeout(0.1)
-                s.connect(("8.8.8.8", 1))
-                ip = s.getsockname()[0]
-                return ip
-        except Exception:
-            pass
-
-        # as last resort...
-        return "127.0.0.1"
-
-    def _get_broadcast_address(self) -> str:
-        """
-        Return the correct IPv4 broadcast address.
-        - Normal LAN IP  -> x.y.z.255
-        - Loopback / invalid / IPv6 only -> 255.255.255.255
-        """
-        ip = self._get_local_ip()
-
-        # check if its a valid-looking IPv4 address that is not loopback
-        try:
-            parts = ip.split(".")
-            if len(parts) == 4:
-                # all parts must be decimal numbers
-                octets = [int(p) for p in parts]
-
-                # check for loopback ip
-                if octets[0] != 127:
-                    return f"{octets[0]}.{octets[1]}.{octets[2]}.255"
-        except ValueError:
-            # no ip could be found?
-            pass
-
-        # use global broadcast address
-        return "255.255.255.255"
-
     def _parse_packet(self, data: bytes, src_ip: str) -> Dict[str, str | None]:
         # received packet: b'192.168.99.141,D4AD20BF7D70,'
         text = data.decode("utf-8", errors="ignore").strip()
@@ -210,7 +142,7 @@ class GatewayDiscoveryManager:
         if not self.is_active():
             return
 
-        addr = self._get_broadcast_address()
+        addr = "255.255.255.255"
         try:
             for t in self.TRIGGERS:
                 _LOGGER.debug(
