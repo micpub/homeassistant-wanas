@@ -47,6 +47,15 @@ On the card you will find:
 4. Search for and select **Wanas**, then follow the configuration steps
 
 
+## Documentation
+
+- **[📘 Setup Guide (PDF) – Polish only](https://raw.githubusercontent.com/micpub/homeassistant-wanas/main/docs/setup-guide-pl.pdf)**  
+  - Mounting and configuration of the Modbus RTU-TCP gateway
+  - Configuration of the HRV device controller
+  - Installation and configuration of the Wanas integration in Home Assistant
+  - Adding the dedicated Lovelace card
+
+
 ---
 
 
@@ -93,6 +102,15 @@ Na karcie znajdziesz:
 2. Zrestartuj Home Assistant
 3. Przejdź do `Ustawienia → Urządzenia oraz usługi → Dodaj integrację`
 4. Wybierz **Wanas** i skonfiguruj
+
+
+## Dokumentacja
+
+- **[📘 Instrukcja obsługi (PDF)](https://raw.githubusercontent.com/micpub/homeassistant-wanas/main/docs/setup-guide-pl.pdf)**  
+  - Montaż i konfiguracja bramki Modbus (RTU-TCP)
+  - Konfiguracja sterownika rekuperatora
+  - Instalacja i konfiguracja integracji Wanas w Home Assistant
+  - Dodanie dedykowanej karty Lovelace
 
 
 ---
