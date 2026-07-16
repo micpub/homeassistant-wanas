@@ -26,12 +26,11 @@ def bool_from_int(v: int) -> bool:
 def temp_from_raw(v: int) -> float | None:
     if v == 63066:  # special value: sensor error
         return None
-    elif v < 63066:
+    if v < 63066:  # positive temps
         return round(v / 10.0, 1)
-    elif v > 63066:
-        delta = (65535 - v) / 10.0
-        return round(-0.1 - delta, 1)
-    return None
+    # negative temps
+    y = 65536 - v
+    return round(-y / 10.0, 1)
 
 
 def int_to_date(value: int) -> date:
