@@ -21,8 +21,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
     coordinator: WanasCoordinator = data["coordinator"]
 
     entities = [
-        WanasSensor(coordinator, key, unit, icon_lambda)
-        for key, unit, icon_lambda in SENSOR_TYPES
+        WanasSensor(coordinator, key, unit, device_class, icon_lambda)
+        for key, unit, device_class, icon_lambda in SENSOR_TYPES
     ]
     entities += [
         WanasFilterSensor(
@@ -40,10 +40,12 @@ class WanasSensor(WanasEntity, SensorEntity):
         coordinator,
         key: str,
         unit,
+        device_class,
         icon_lambda: Optional[Callable[[str | int | float | None], str]],
     ):
         super().__init__(coordinator, key)
         self._attr_native_unit_of_measurement = unit
+        self._attr_device_class = device_class
         self._icon_lambda = icon_lambda
 
     @property

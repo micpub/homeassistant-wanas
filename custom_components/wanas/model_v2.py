@@ -58,6 +58,40 @@ def time_to_int(t: time) -> int:
 
 
 # ----------------------------------------------------------------------
+# Converters used in the registers list with workarounds
+# there is no way to tell if the external sensor is connected or not
+# in the (SERVICE_MENU_BINARY_BIT_TYPES)
+# ----------------------------------------------------------------------
+def ext_sensor_co2th_co2_identity(v: int) -> int:
+    # my machine returns 0 when its not connected
+    # 0 is unrealistic so it should be fine
+    if(v == 0):
+        return None
+    return v
+
+
+def ext_sensor_co2th_humidity_identity(v: int) -> int:
+    # my machine returns 63982 when its not connected - why this value?
+    if(v == 63982):
+        return None
+    return v
+
+
+def ext_sensor_th_humidity_identity(v: int) -> int:
+    # my machine returns 65535(uint16 max) when its not connected
+    if(v == 65535):
+        return None
+    return v
+
+
+def ext_sensor_co2th_and_th_temp_from_raw(v: int) -> float | None:
+    # my machine returns 65036(which is -50,0 c) when its not connected
+    if(v == 65036):
+        return None
+    return temp_from_raw(v)
+
+
+# ----------------------------------------------------------------------
 # Make sure to match 'key' param of register list, WanasData data class
 # and the entity definitions
 # ----------------------------------------------------------------------
@@ -93,6 +127,18 @@ class WanasData:
     speed1_airflow: int
     speed2_airflow: int
     speed3_airflow: int
+    extsen_th_humidity_livingroom: int
+    extsen_th_humidity_bathroom1: int
+    extsen_th_humidity_bathroom2: int
+    extsen_co2th_co2_dayzone: int
+    extsen_co2th_co2_nightzone: int
+    extsen_co2th_humidity_dayzone: int
+    extsen_co2th_humidity_nightzone: int
+    extsen_th_temp_livingroom: float
+    extsen_th_temp_bathroom1: float
+    extsen_th_temp_bathroom2: float
+    extsen_co2th_temp_dayzone: float
+    extsen_co2th_temp_nightzone: float
     zone_damper_mode: bool
     frost_protection: bool
     primary_heater: bool
@@ -252,6 +298,20 @@ REGISTERS: list[Register] = sorted(
             write_value_step=10,
             write_converter=lambda v: int(v),
         ),
+        # readonly current feature state
+        Register(55, "extsen_th_humidity_livingroom", ext_sensor_th_humidity_identity, min=0, max=100),
+        Register(56, "extsen_th_humidity_bathroom1", ext_sensor_th_humidity_identity, min=0, max=100),
+        Register(57, "extsen_th_humidity_bathroom2", ext_sensor_th_humidity_identity, min=0, max=100),
+        Register(58, "extsen_co2th_co2_dayzone", ext_sensor_co2th_co2_identity, min=0, max=9999),
+        Register(59, "extsen_co2th_co2_nightzone", ext_sensor_co2th_co2_identity, min=0, max=9999),
+        Register(60, "extsen_co2th_humidity_dayzone", ext_sensor_co2th_humidity_identity, min=0, max=100),
+        Register(61, "extsen_co2th_humidity_nightzone", ext_sensor_co2th_humidity_identity, min=0, max=100),
+        Register(65, "extsen_th_temp_livingroom", ext_sensor_co2th_and_th_temp_from_raw, min=0, max=65535),
+        Register(66, "extsen_th_temp_bathroom1", ext_sensor_co2th_and_th_temp_from_raw, min=0, max=65535),
+        Register(67, "extsen_th_temp_bathroom2", ext_sensor_co2th_and_th_temp_from_raw, min=0, max=65535),
+        Register(68, "extsen_co2th_temp_dayzone", ext_sensor_co2th_and_th_temp_from_raw, min=0, max=65535),
+        Register(69, "extsen_co2th_temp_nightzone", ext_sensor_co2th_and_th_temp_from_raw, min=0, max=65535),
+        # read-write manual feature control
         Register(
             62,
             "zone_damper_mode",
@@ -310,19 +370,22 @@ GROUPED_REGISTERS = group_registers(REGISTERS)
 # HASS entity definitions
 
 SENSOR_TYPES = [
-    # key, unit, icon_lambda
+    # key, unit, device_class, icon_lambda
     (
         "supply_airflow",
         UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
+        SensorDeviceClass.VOLUME_FLOW_RATE,
         lambda x: "mdi:fan",
     ),
     (
         "extract_airflow",
         UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
+        SensorDeviceClass.VOLUME_FLOW_RATE,
         lambda x: "mdi:fan",
     ),
     (
         "supply_fan_speed",
+        None,
         None,
         lambda x: (
             "mdi:fan-off"
@@ -341,6 +404,7 @@ SENSOR_TYPES = [
     (
         "extract_fan_speed",
         None,
+        None,
         lambda x: (
             "mdi:fan-off"
             if x is None or x == 0
@@ -358,26 +422,103 @@ SENSOR_TYPES = [
     (
         "outdoor_temp",
         UnitOfTemperature.CELSIUS,
+        SensorDeviceClass.TEMPERATURE,
         lambda x: "mdi:thermometer",
     ),
     (
         "exhaust_temp",
         UnitOfTemperature.CELSIUS,
+        SensorDeviceClass.TEMPERATURE,
         lambda x: "mdi:thermometer",
     ),
     (
         "supply_temp",
         UnitOfTemperature.CELSIUS,
+        SensorDeviceClass.TEMPERATURE,
         lambda x: "mdi:thermometer",
     ),
     (
         "extract_temp",
         UnitOfTemperature.CELSIUS,
+        SensorDeviceClass.TEMPERATURE,
         lambda x: "mdi:thermometer",
     ),
     (
         "extra_temp",
         UnitOfTemperature.CELSIUS,
+        SensorDeviceClass.TEMPERATURE,
+        lambda x: "mdi:thermometer",
+    ),
+    (
+        "extsen_th_humidity_livingroom",
+        "%",
+        SensorDeviceClass.HUMIDITY,
+        lambda x: "mdi:water-percent",
+    ),
+    (
+        "extsen_th_humidity_bathroom1",
+        "%",
+        SensorDeviceClass.HUMIDITY,
+        lambda x: "mdi:water-percent",
+    ),
+    (
+        "extsen_th_humidity_bathroom2",
+        "%",
+        SensorDeviceClass.HUMIDITY,
+        lambda x: "mdi:water-percent",
+    ),
+    (
+        "extsen_co2th_co2_dayzone",
+        "ppm",
+        SensorDeviceClass.CO2,
+        lambda x: "mdi:molecule-co2",
+    ),
+    (
+        "extsen_co2th_co2_nightzone",
+        "ppm",
+        SensorDeviceClass.CO2,
+        lambda x: "mdi:molecule-co2",
+    ),
+    (
+        "extsen_co2th_humidity_dayzone",
+        "%",
+        SensorDeviceClass.HUMIDITY,
+        lambda x: "mdi:water-percent",
+    ),
+    (
+        "extsen_co2th_humidity_nightzone",
+        "%",
+        SensorDeviceClass.HUMIDITY,
+        lambda x: "mdi:water-percent",
+    ),
+    (
+        "extsen_th_temp_livingroom",
+        UnitOfTemperature.CELSIUS,
+        SensorDeviceClass.TEMPERATURE,
+        lambda x: "mdi:thermometer",
+    ),
+    (
+        "extsen_th_temp_bathroom1",
+        UnitOfTemperature.CELSIUS,
+        SensorDeviceClass.TEMPERATURE,
+        lambda x: "mdi:thermometer",
+    ),
+    (
+        "extsen_th_temp_bathroom2",
+        UnitOfTemperature.CELSIUS,
+        SensorDeviceClass.TEMPERATURE,
+        lambda x: "mdi:thermometer",
+    ),
+    (
+        "extsen_co2th_temp_dayzone",
+        UnitOfTemperature.CELSIUS,
+        SensorDeviceClass.TEMPERATURE,
+        lambda x: "mdi:thermometer",
+    ),
+    (
+        "extsen_co2th_temp_nightzone",
+        UnitOfTemperature.CELSIUS,
+        SensorDeviceClass.TEMPERATURE,
         lambda x: "mdi:thermometer",
     ),
 ]

@@ -1,5 +1,11 @@
 {
   "Detected Errors": "Detected Errors",
   "Status": "Status",
-  "Settings": "Settings"
+  "Settings": "Settings",
+  "Extra sensors": "Extra sensors",
+  "Living room": "Living room",
+  "Bathroom 1": "Bathroom 1",
+  "Bathroom 2": "Bathroom 2",
+  "Day zone": "Day zone",
+  "Night zone": "Night zone"
 }

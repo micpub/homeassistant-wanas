@@ -1,5 +1,11 @@
 {
   "Detected Errors": "Wykryte Błędy",
   "Status": "Stan",
-  "Settings": "Ustawienia"
+  "Settings": "Ustawienia",
+  "Extra sensors": "Dodatkowe czujniki",
+  "Living room": "Salon",
+  "Bathroom 1": "Łazienka 1",
+  "Bathroom 2": "Łazienka 2",
+  "Day zone": "Strefa dzienna",
+  "Night zone": "Strefa nocna"
 }

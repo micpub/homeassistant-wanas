@@ -65,7 +65,20 @@
       "extract_temp": { "name": "Extract temperature" },
       "extra_temp": { "name": "Extra temperature" },
 
-      "filter_wear_status": { "name": "Filter wear" }
+      "filter_wear_status": { "name": "Filter wear" },
+
+      "extsen_th_humidity_livingroom": { "name": "Living room humidity" },
+      "extsen_th_humidity_bathroom1": { "name": "Bathroom 1 humidity" },
+      "extsen_th_humidity_bathroom2": { "name": "Bathroom 2 humidity" },
+      "extsen_co2th_co2_dayzone": { "name": "Day zone CO₂" },
+      "extsen_co2th_co2_nightzone": { "name": "Night zone CO₂" },
+      "extsen_co2th_humidity_dayzone": { "name": "Day zone humidity" },
+      "extsen_co2th_humidity_nightzone": { "name": "Night zone humidity" },
+      "extsen_th_temp_livingroom": { "name": "Living room temperature" },
+      "extsen_th_temp_bathroom1": { "name": "Bathroom 1 temperature" },
+      "extsen_th_temp_bathroom2": { "name": "Bathroom 2 temperature" },
+      "extsen_co2th_temp_dayzone": { "name": "Day zone temperature" },
+      "extsen_co2th_temp_nightzone": { "name": "Night zone temperature" }
     },
     "binary_sensor": {
       "ghe": { "name": "GHE" },

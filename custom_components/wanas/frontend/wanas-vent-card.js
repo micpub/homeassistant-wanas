@@ -16,6 +16,7 @@ class UiTileEntity extends LitElement {
     entity: { type: String },
     tile_type: { type: Number },
     name: { type: String },
+    narrow_tile_show_name: { type: Boolean },
     state: { type: String },
     wide_tile: { type: Boolean },
   };
@@ -23,6 +24,7 @@ class UiTileEntity extends LitElement {
   constructor() {
     super();
     this.wide_tile = false;
+    this.narrow_tile_show_name = true;
   }
 
   get _stateObj() {
@@ -161,7 +163,8 @@ class UiTileEntity extends LitElement {
       }
     } else {
       if (this.tile_type === UiTileType.STATE_SHOWN) {
-        return html`
+        if (this.narrow_tile_show_name){
+          return html`
           <div class="tile tile-narrow">
             <div class="background button" @click=${this._show_more_info}>
               <ha-ripple .recenters=${true}></ha-ripple>
@@ -177,6 +180,24 @@ class UiTileEntity extends LitElement {
             </div>
           </div>
         `;
+        }
+        else {
+          return html`
+          <div class="tile tile-narrow tile-xsmall">
+            <div class="background button" @click=${this._show_more_info}>
+              <ha-ripple .recenters=${true}></ha-ripple>
+            </div>
+            <div class="container">
+              <div class="content">
+                <div class="icon-primary">
+                  <ha-state-icon .hass=${this.hass} .stateObj=${obj} class="icon"></ha-state-icon>
+                </div>
+                <div class="secondary">${state}</div>
+              </div>
+            </div>
+          </div>
+        `;
+        }
       } else {
         return html`unimplemented type`;
       }
@@ -209,6 +230,9 @@ class UiTileEntity extends LitElement {
     }
     .tile:hover {
       box-shadow: var(--ha-card-box-shadow, 0 4px 8px rgba(0, 0, 0, 0.15));
+    }
+    .tile-xsmall {
+      height: 50px !important;
     }
     .tile-narrow {
       height: 80px;
@@ -367,6 +391,7 @@ class WanasCard extends LitElement {
     _deviceId: { attribute: false },
     _entityRegistry: { attribute: false },
     _settingsOpen: { type: Boolean },
+    _wirelessSensorsOpen: { type: Boolean },
     _trDB: { state: false },
     _loadedLang: { state: false },
     readOnlySensors: { attribute: false },
@@ -381,12 +406,17 @@ class WanasCard extends LitElement {
   constructor() {
     super();
     this._settingsOpen = false;
+    this._wirelessSensorsOpen = true;
     this._trDB = {};
     this._loadedLang = "";
   }
 
-  get _storageKey() {
+  get _settingsStorageKey() {
     return this._config?.device ? `${this._config.device}_settingsOpen` : null;
+  }
+
+  get _wirelessSensorsStorageKey() {
+    return this._config?.device ? `${this._config.device}_wirelessSensorsOpen` : null;
   }
 
   setConfig(config) {
@@ -465,9 +495,20 @@ class WanasCard extends LitElement {
         if (!this._entityRegistry) {
           await this._updateRegistryAndEntities();
         }
-        const key = this._storageKey;
-        if (key) {
-          this._settingsOpen = localStorage.getItem(key) === 'true';
+        const settingsKey = this._settingsStorageKey;
+        if (settingsKey) {
+          let result = localStorage.getItem(settingsKey)//returns null if not exists
+          if(result) {
+            this._settingsOpen = result === 'true';
+          }
+        }
+
+        const wirelessSensorsKey = this._wirelessSensorsStorageKey;
+        if (wirelessSensorsKey) {
+          let result = localStorage.getItem(wirelessSensorsKey)//returns null if not exists
+          if(result) {
+            this._wirelessSensorsOpen = result === 'true';
+          }
         }
       }
     }
@@ -482,6 +523,7 @@ class WanasCard extends LitElement {
       for(const [key, value] of Object.entries(params))
         text = text.replace(`{${key}}`, value);
     }
+    //console.log("tr: source: ", source, "   return: ", text)
     return text;
   }
 
@@ -531,7 +573,13 @@ class WanasCard extends LitElement {
     this.readOnlySensors = this._fetchEntities(configDeviceId, [
       "supply_airflow", "extract_airflow", "supply_fan_speed", "extract_fan_speed",
       "outdoor_temp", "exhaust_temp", "supply_temp", "extract_temp", "extra_temp",
-      "filter_wear_status"
+      "filter_wear_status", "extsen_th_humidity_livingroom",
+      "extsen_th_humidity_bathroom1", "extsen_th_humidity_bathroom2",
+      "extsen_co2th_co2_dayzone", "extsen_co2th_co2_nightzone",
+      "extsen_co2th_humidity_dayzone", "extsen_co2th_humidity_nightzone",
+      "extsen_th_temp_livingroom", "extsen_th_temp_bathroom1",
+      "extsen_th_temp_bathroom2", "extsen_co2th_temp_dayzone",
+      "extsen_co2th_temp_nightzone"
     ]);
 
     this.readWriteSwitches = this._fetchEntities(configDeviceId, [
@@ -753,7 +801,7 @@ class WanasCard extends LitElement {
     `;
   }
 
-  _getStatusTiles() {
+  _renderStatusTiles() {
     const tiles = [
       { entityMap: this.readOnlySensors, key: 'filter_wear_status' },
       { entityMap: this.readOnlyBinarySensors, key: 'summer_bypass' },
@@ -767,13 +815,9 @@ class WanasCard extends LitElement {
       { funcKey: 'zone_damper_func_enabled', entityMap: this.readOnlyBinarySensors, key: 'zone_damper' },
     ].filter(tile => !tile.funcKey || this.hass.states[this.funcEnabled[tile.funcKey].entity_id].state === "on");
 
-    return tiles;
-  }
-
-  _renderStatusTiles() {
     return html`
-      <div class="tiles-container">
-        ${this._getStatusTiles().map(({ entityMap, key }) => html`
+      <div class="status-tiles-container">
+        ${tiles.map(({ entityMap, key }) => html`
           <ui-tile-entity
             .hass=${this.hass}
             .entity=${entityMap[key]?.entity_id}
@@ -785,7 +829,96 @@ class WanasCard extends LitElement {
     `;
   }
 
-  _getSettingsTiles() {
+  _renderWirelessSensors() {
+    const renderTilesFunc = (name, tiles) => {
+      return tiles?.length ? html`
+      <div class="wireless-sensor-tiles-outer-row">
+        <div class="tiles-container-title">
+          <ha-icon icon="mdi:router-wireless"></ha-icon>
+          <div>${name}</div>
+        </div>
+        <div class="wireless-sensor-tiles-inner-container">
+          ${tiles.map(({ entityMap, key }) => html`
+            <ui-tile-entity
+              .hass=${this.hass}
+              .entity=${entityMap[key]?.entity_id}
+              .name=${this._tryGetShorterName(entityMap[key])}
+              .narrow_tile_show_name=${false}
+              .tile_type=${UiTileType.STATE_SHOWN}
+            ></ui-tile-entity>
+          `)}
+        </div>
+        </div>
+      ` : nothing;
+    }
+    const filterFunc = (tile) => {
+      const entityId = tile.entityMap[tile.key].entity_id;
+      return this.hass.states[entityId]?.state !== "unknown" //sensor not connected
+                && this.hass.states[entityId]?.state !== "unavailable"//hrv not connected;
+    };
+
+    const livingroom_tiles = [
+      { entityMap: this.readOnlySensors, key: 'extsen_th_temp_livingroom' },
+      { entityMap: this.readOnlySensors, key: 'extsen_th_humidity_livingroom' },
+    ].filter(filterFunc);
+    const bathroom1_tiles = [
+      { entityMap: this.readOnlySensors, key: 'extsen_th_temp_bathroom1' },
+      { entityMap: this.readOnlySensors, key: 'extsen_th_humidity_bathroom1' },
+    ].filter(filterFunc);
+    const bathroom2_tiles = [
+      { entityMap: this.readOnlySensors, key: 'extsen_th_temp_bathroom2' },
+      { entityMap: this.readOnlySensors, key: 'extsen_th_humidity_bathroom2' },
+    ].filter(filterFunc);
+    const dayzone_tiles = [
+      { entityMap: this.readOnlySensors, key: 'extsen_co2th_temp_dayzone' },
+      { entityMap: this.readOnlySensors, key: 'extsen_co2th_humidity_dayzone' },
+      { entityMap: this.readOnlySensors, key: 'extsen_co2th_co2_dayzone' },
+    ].filter(filterFunc);
+    const nightzone_tiles = [
+      { entityMap: this.readOnlySensors, key: 'extsen_co2th_temp_nightzone' },
+      { entityMap: this.readOnlySensors, key: 'extsen_co2th_humidity_nightzone' },
+      { entityMap: this.readOnlySensors, key: 'extsen_co2th_co2_nightzone' },
+    ].filter(filterFunc);
+
+    const any_connected = livingroom_tiles?.length || bathroom1_tiles?.length
+        || bathroom2_tiles?.length || dayzone_tiles?.length
+        || nightzone_tiles?.length
+
+    return any_connected ? html`
+      <div class="tiles-container-title">
+        <ha-icon icon="mdi:router-wireless"></ha-icon>
+        <div>${this.tr("Extra sensors")}</div>
+        <ha-switch
+          .disabled=${false}
+          @change=${(e) => {
+            this._wirelessSensorsOpen = e.target.checked;
+            const key = this._wirelessSensorsStorageKey;
+            if (key) {
+              localStorage.setItem(key, this._wirelessSensorsOpen);
+            }
+          }}
+          .checked=${this._wirelessSensorsOpen}
+          .haptic=${true}
+          class="dropdown-section-switch"
+        ></ha-switch>
+      </div>
+      <div class="dropdown-section-wrapper ${this._wirelessSensorsOpen ? 'open' : ''}">
+        <div class="dropdown-section-inner">
+          <div class="wireless-sensor-tiles-outer-container">
+            ${renderTilesFunc(this.tr("Living room"), livingroom_tiles)}
+            ${renderTilesFunc(this.tr("Bathroom 1"), bathroom1_tiles)}
+            ${renderTilesFunc(this.tr("Bathroom 2"), bathroom2_tiles)}
+          </div>
+          <div class="wireless-sensor-tiles-outer-container">
+            ${renderTilesFunc(this.tr("Day zone"), dayzone_tiles)}
+            ${renderTilesFunc(this.tr("Night zone"), nightzone_tiles)}
+          </div>
+        </div>
+      </div>
+    ` : nothing;
+  }
+
+  _renderSettings() {
     const tiles = [
       { funcKey: 'ghe_func_enabled', entityMap: this.readWriteSwitches, key: 'ghe_mode', type: UiTileType.SWITCH },
       { entityMap: this.readWriteSwitches, key: 'summer_bypass_mode', type: UiTileType.SWITCH },
@@ -803,10 +936,6 @@ class WanasCard extends LitElement {
       { entityMap: this.readWriteNumbers, key: 'manual_comfort_temp', type: UiTileType.NUMBER },
     ].filter(tile => !tile.funcKey || this.hass.states[this.funcEnabled[tile.funcKey].entity_id].state === "on");
 
-    return tiles;
-  }
-
-  _renderSettings() {
     return html`
       <div class="tiles-container-title">
         <ha-icon icon="mdi:cog-outline"></ha-icon>
@@ -815,20 +944,20 @@ class WanasCard extends LitElement {
           .disabled=${false}
           @change=${(e) => {
             this._settingsOpen = e.target.checked;
-            const key = this._storageKey;
+            const key = this._settingsStorageKey;
             if (key) {
               localStorage.setItem(key, this._settingsOpen);
             }
           }}
           .checked=${this._settingsOpen}
           .haptic=${true}
-          class="settings-switch"
+          class="dropdown-section-switch"
         ></ha-switch>
       </div>
-      <div class="settings-wrapper ${this._settingsOpen ? 'open' : ''}">
-        <div class="settings-inner">
+      <div class="dropdown-section-wrapper ${this._settingsOpen ? 'open' : ''}">
+        <div class="dropdown-section-inner">
           <div class="wide-tile-container">
-            ${this._getSettingsTiles().map(({ entityMap, key, type }) => html`
+            ${tiles.map(({ entityMap, key, type }) => html`
               <ui-tile-entity
                 .hass=${this.hass}
                 .entity=${entityMap[key]?.entity_id}
@@ -856,6 +985,7 @@ class WanasCard extends LitElement {
         ${this._renderTopRow()}
         ${this._renderMainArea()}
         ${this._renderStatusTiles()}
+        ${this._renderWirelessSensors()}
         ${this._renderSettings()}
       </ha-card>
     `;
@@ -878,11 +1008,27 @@ class WanasCard extends LitElement {
       column-gap: 4px;
       max-width: 440px;
     }
-    .tiles-container {
+    .status-tiles-container {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(75px, 1fr));
       row-gap: 8px;
       column-gap: 4px;
+    }
+    .wireless-sensor-tiles-outer-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      column-gap: 8px;
+    }
+    .wireless-sensor-tiles-outer-row {
+      display: flex;
+      flex-direction:
+      column; row-gap: 6px;
+    }
+    .wireless-sensor-tiles-inner-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, 65px);
+      row-gap: 8px;
+      column-gap: 8px;
     }
     .tiles-container-title {
       padding-top: 10px;
@@ -1006,20 +1152,20 @@ class WanasCard extends LitElement {
     .large-icon {
       --mdc-icon-size: 24px;
     }
-    .settings-wrapper {
+    .dropdown-section-wrapper {
       display: grid;
       grid-template-rows: 0fr;
       overflow: hidden;
       transition: grid-template-rows 0.35s ease;
     }
-    .settings-wrapper.open {
+    .dropdown-section-wrapper.open {
       grid-template-rows: 1fr;
       padding-top: 10px;
     }
-    .settings-inner {
+    .dropdown-section-inner {
       overflow: hidden;
     }
-    .settings-switch {
+    .dropdown-section-switch {
       margin-left: 10px;
     }
   `;

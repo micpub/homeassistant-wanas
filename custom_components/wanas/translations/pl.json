@@ -65,7 +65,20 @@
       "extract_temp": { "name": "Temperatura wywiewu" },
       "extra_temp": { "name": "Dodatkowa temperatura" },
 
-      "filter_wear_status": { "name": "Zużycie filtra" }
+      "filter_wear_status": { "name": "Zużycie filtra" },
+
+      "extsen_th_humidity_livingroom": { "name": "Wilgotność salonu" },
+      "extsen_th_humidity_bathroom1": { "name": "Wilgotność łazienki 1" },
+      "extsen_th_humidity_bathroom2": { "name": "Wilgotność łazienki 2" },
+      "extsen_co2th_co2_dayzone": { "name": "CO₂ strefa dzienna" },
+      "extsen_co2th_co2_nightzone": { "name": "CO₂ strefa nocna" },
+      "extsen_co2th_humidity_dayzone": { "name": "Wilgotność strefy dziennej" },
+      "extsen_co2th_humidity_nightzone": { "name": "Wilgotność strefy nocnej" },
+      "extsen_th_temp_livingroom": { "name": "Temperatura salonu" },
+      "extsen_th_temp_bathroom1": { "name": "Temperatura łazienki 1" },
+      "extsen_th_temp_bathroom2": { "name": "Temperatura łazienki 2" },
+      "extsen_co2th_temp_dayzone": { "name": "Temperatura strefy dziennej" },
+      "extsen_co2th_temp_nightzone": { "name": "Temperatura strefy nocnej" }
     },
     "binary_sensor": {
       "ghe": { "name": "GWC" },
