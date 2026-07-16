@@ -39,6 +39,8 @@ On the card you will find:
 
 ## Installation
 
+**Important**: Before installation, please read the **[📘 Setup Guide (PDF) – Polish only](https://raw.githubusercontent.com/micpub/homeassistant-wanas/main/docs/setup-guide-pl.pdf)**.
+
 ### Recommended method – via HACS (easiest)
 
 1. Install the **Wanas** integration
@@ -95,6 +97,8 @@ Na karcie znajdziesz:
 
 
 ## Instalacja
+
+**Uwaga**: Przed instalacją prosimy o przeczytanie **[📘 Instrukcji obsługi (PDF)](https://raw.githubusercontent.com/micpub/homeassistant-wanas/main/docs/setup-guide-pl.pdf)**.
 
 ### Sposób zalecany – przez HACS (najprostszy)
 
