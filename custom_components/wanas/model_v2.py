@@ -62,7 +62,7 @@ def time_to_int(t: time) -> int:
 # there is no way to tell if the external sensor is connected or not
 # in the (SERVICE_MENU_BINARY_BIT_TYPES)
 # ----------------------------------------------------------------------
-def ext_sensor_co2th_co2_identity(v: int) -> int:
+def ext_sensor_co2th_co2_identity(v: int) -> int | None:
     # my machine returns 0 when its not connected
     # 0 is unrealistic so it should be fine
     if(v == 0):
@@ -70,18 +70,18 @@ def ext_sensor_co2th_co2_identity(v: int) -> int:
     return v
 
 
-def ext_sensor_co2th_humidity_identity(v: int) -> int:
+def ext_sensor_co2th_humidity_identity(v: int) -> int | None:
     # my machine returns 63982 when its not connected - why this value?
     if(v == 63982):
         return None
     return v
 
 
-def ext_sensor_th_humidity_identity(v: int) -> int:
+def ext_sensor_th_humidity_identity(v: int) -> float | None:
     # my machine returns 65535(uint16 max) when its not connected
     if(v == 65535):
         return None
-    return v
+    return round(v / 10.0, 1)
 
 
 def ext_sensor_co2th_and_th_temp_from_raw(v: int) -> float | None:
@@ -127,9 +127,9 @@ class WanasData:
     speed1_airflow: int
     speed2_airflow: int
     speed3_airflow: int
-    extsen_th_humidity_livingroom: int
-    extsen_th_humidity_bathroom1: int
-    extsen_th_humidity_bathroom2: int
+    extsen_th_humidity_livingroom: float
+    extsen_th_humidity_bathroom1: float
+    extsen_th_humidity_bathroom2: float
     extsen_co2th_co2_dayzone: int
     extsen_co2th_co2_nightzone: int
     extsen_co2th_humidity_dayzone: int
@@ -299,9 +299,9 @@ REGISTERS: list[Register] = sorted(
             write_converter=lambda v: int(v),
         ),
         # readonly current feature state
-        Register(55, "extsen_th_humidity_livingroom", ext_sensor_th_humidity_identity, min=0, max=100),
-        Register(56, "extsen_th_humidity_bathroom1", ext_sensor_th_humidity_identity, min=0, max=100),
-        Register(57, "extsen_th_humidity_bathroom2", ext_sensor_th_humidity_identity, min=0, max=100),
+        Register(55, "extsen_th_humidity_livingroom", ext_sensor_th_humidity_identity, min=0, max=1000),
+        Register(56, "extsen_th_humidity_bathroom1", ext_sensor_th_humidity_identity, min=0, max=1000),
+        Register(57, "extsen_th_humidity_bathroom2", ext_sensor_th_humidity_identity, min=0, max=1000),
         Register(58, "extsen_co2th_co2_dayzone", ext_sensor_co2th_co2_identity, min=0, max=9999),
         Register(59, "extsen_co2th_co2_nightzone", ext_sensor_co2th_co2_identity, min=0, max=9999),
         Register(60, "extsen_co2th_humidity_dayzone", ext_sensor_co2th_humidity_identity, min=0, max=100),
