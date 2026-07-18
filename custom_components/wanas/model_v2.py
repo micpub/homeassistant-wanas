@@ -370,21 +370,24 @@ GROUPED_REGISTERS = group_registers(REGISTERS)
 # HASS entity definitions
 
 SENSOR_TYPES = [
-    # key, unit, device_class, icon_lambda
+    # key, unit, device_class, state_class, icon_lambda
     (
         "supply_airflow",
         UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
         SensorDeviceClass.VOLUME_FLOW_RATE,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:fan",
     ),
     (
         "extract_airflow",
         UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
         SensorDeviceClass.VOLUME_FLOW_RATE,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:fan",
     ),
     (
         "supply_fan_speed",
+        None,
         None,
         None,
         lambda x: (
@@ -405,6 +408,7 @@ SENSOR_TYPES = [
         "extract_fan_speed",
         None,
         None,
+        None,
         lambda x: (
             "mdi:fan-off"
             if x is None or x == 0
@@ -423,102 +427,119 @@ SENSOR_TYPES = [
         "outdoor_temp",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:thermometer",
     ),
     (
         "exhaust_temp",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:thermometer",
     ),
     (
         "supply_temp",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:thermometer",
     ),
     (
         "extract_temp",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:thermometer",
     ),
     (
         "extra_temp",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:thermometer",
     ),
     (
         "extsen_th_humidity_livingroom",
         "%",
         SensorDeviceClass.HUMIDITY,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:water-percent",
     ),
     (
         "extsen_th_humidity_bathroom1",
         "%",
         SensorDeviceClass.HUMIDITY,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:water-percent",
     ),
     (
         "extsen_th_humidity_bathroom2",
         "%",
         SensorDeviceClass.HUMIDITY,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:water-percent",
     ),
     (
         "extsen_co2th_co2_dayzone",
         "ppm",
         SensorDeviceClass.CO2,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:molecule-co2",
     ),
     (
         "extsen_co2th_co2_nightzone",
         "ppm",
         SensorDeviceClass.CO2,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:molecule-co2",
     ),
     (
         "extsen_co2th_humidity_dayzone",
         "%",
         SensorDeviceClass.HUMIDITY,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:water-percent",
     ),
     (
         "extsen_co2th_humidity_nightzone",
         "%",
         SensorDeviceClass.HUMIDITY,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:water-percent",
     ),
     (
         "extsen_th_temp_livingroom",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:thermometer",
     ),
     (
         "extsen_th_temp_bathroom1",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:thermometer",
     ),
     (
         "extsen_th_temp_bathroom2",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:thermometer",
     ),
     (
         "extsen_co2th_temp_dayzone",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:thermometer",
     ),
     (
         "extsen_co2th_temp_nightzone",
         UnitOfTemperature.CELSIUS,
         SensorDeviceClass.TEMPERATURE,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:thermometer",
     ),
 ]
@@ -529,8 +550,8 @@ FILTER_SENSOR_TYPES = [
         "filter_wear_status",
         UnitOfTime.DAYS,
         SensorDeviceClass.DURATION,
-        SensorStateClass.MEASUREMENT,
-        lambda x: "mdi:air-filter",
+        None,
+        lambda x: "mdi:alert-circle" if x == 0 else "mdi:air-filter",
     ),
 ]
 
