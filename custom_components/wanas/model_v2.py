@@ -389,7 +389,7 @@ SENSOR_TYPES = [
         "supply_fan_speed",
         None,
         None,
-        None,
+        SensorStateClass.MEASUREMENT,
         lambda x: (
             "mdi:fan-off"
             if x is None or x == 0
@@ -408,7 +408,7 @@ SENSOR_TYPES = [
         "extract_fan_speed",
         None,
         None,
-        None,
+        SensorStateClass.MEASUREMENT,
         lambda x: (
             "mdi:fan-off"
             if x is None or x == 0
@@ -550,7 +550,7 @@ FILTER_SENSOR_TYPES = [
         "filter_wear_status",
         UnitOfTime.DAYS,
         SensorDeviceClass.DURATION,
-        None,
+        SensorStateClass.MEASUREMENT,
         lambda x: "mdi:alert-circle" if x == 0 else "mdi:air-filter",
     ),
 ]
