@@ -95,7 +95,7 @@ def ext_sensor_co2th_humidity_identity(v: int) -> int | None:
     # my machine returns 63982 when its not connected - why this value?
     if(v == 63982):
         return None
-    return v
+    return round(v / 10.0, 1)
 
 
 def ext_sensor_th_humidity_identity(v: int) -> float | None:
