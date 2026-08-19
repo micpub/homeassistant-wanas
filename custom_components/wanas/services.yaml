@@ -1,0 +1,72 @@
+update_weekly_schedule_zone:
+  name: Update weekly schedule zone
+  description: Update one or more parameters of a weekly schedule zone.
+
+  target:
+    device:
+      integration: wanas
+
+  fields:
+    day:
+      name: Day
+      description: Day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday).
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 6
+          mode: box
+
+    zone:
+      name: Zone
+      description: Zone number.
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 5
+          mode: box
+
+    start:
+      name: Start time
+      description: Start time in minutes since midnight.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          step: 15
+          mode: box
+
+    end:
+      name: End time
+      description: End time in minutes since midnight.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          step: 15
+          mode: box
+
+    speed:
+      name: Fan speed
+      description: Fan speed level.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 3
+          step: 1
+          mode: box
+
+    temp:
+      name: Temperature
+      description: Comfort temperature in °C.
+      required: false
+      selector:
+        number:
+          min: 10
+          max: 30
+          step: 1
+          mode: box

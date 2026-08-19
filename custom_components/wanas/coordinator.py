@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 import logging
 from dataclasses import dataclass
 from datetime import timedelta, datetime
@@ -23,8 +24,10 @@ from .register import Register
 from .model_v2 import (
     WanasData,
     REGISTERS,
-    GROUPED_REGISTERS,
+    GROUPED_REGISTERS_NO_COMPLEX,
     REGISTERS_BY_KEY,
+    _async_fetch_complex_registers,
+    _set_complex_register_data,
 )
 from .const import (
     CONF_DISCOVERY_MODE,
@@ -269,6 +272,13 @@ class WanasCoordinator(DataUpdateCoordinator[WanasData]):
         self.device_entry = device
         self.hass_entity_prefix = hass_entity_prefix
 
+        self._cancel_full_update_timer: CALLBACK_TYPE | None = async_track_time_interval(
+            hass,
+            self._mark_modbus_full_update,
+            timedelta(seconds=30),
+        )
+        self.do_modbus_full_update = True
+
         # in auto mode on first run theres no CONF_HOST so need 'default' ip here - its never really used
         self.connection = ModbusConnection(
             initial_host=entry.data.get(CONF_HOST, "127.0.0.1"),
@@ -288,33 +298,128 @@ class WanasCoordinator(DataUpdateCoordinator[WanasData]):
             )
             hass.async_create_task(self.gateway_discovery.start())
 
+    async def _mark_modbus_full_update(self, event_time: datetime) -> None:
+        async with self._lock:
+            self.do_modbus_full_update = True
+
+    @asynccontextmanager
+    async def locked(self):
+        """Run a block of Modbus operations under the coordinator lock."""
+        async with self._lock:
+            yield
+
+    async def _async_write_register(self, name: str, value: Any) -> None:
+        if self._stopped:
+            raise UpdateFailed("Coordinator stopped")
+
+        if not await self._ensure_connected():
+            raise UpdateFailed("Cannot write: Modbus not connected")
+
+        reg = REGISTERS_BY_KEY.get(name, None)
+        if not reg or not reg.writable:
+            raise ValueError(f"Register {name} is not writable")
+        raw = reg.write_converter(value) if reg.write_converter else value
+        try:
+            result = await self.connection.client.write_register(
+                address=reg.address, value=raw, device_id=self.connection.slave
+            )
+        except ModbusException as err:
+            raise UpdateFailed(
+                f"Modbus write failed (addr={reg.address}, value={raw}, error: {err})"
+            ) from err
+        if result.isError():
+            raise UpdateFailed(
+                f"Modbus error (addr={reg.address}, value={raw}, error: {result})"
+            )
+
+        if self.data is not None:
+            if not reg.is_complex:
+                setattr(self.data, name, value)
+            else:
+                _set_complex_register_data(self.data, reg, name, value)
+
     async def async_write_register(self, name: str, value: Any) -> None:
         async with self._lock:
-            if self._stopped:
-                raise UpdateFailed("Coordinator stopped")
+            await self._async_write_register(name, value)
 
-            if not await self._ensure_connected():
-                raise UpdateFailed("Cannot write: Modbus not connected")
+    async def _async_write_registers(self, names: list[str], values: list[Any]) -> None:
+        if self._stopped:
+            raise UpdateFailed("Coordinator stopped")
 
+        if not await self._ensure_connected():
+            raise UpdateFailed("Cannot write: Modbus not connected")
+
+        if len(names) == 0:
+            raise UpdateFailed("Cannot write registers: register list empty - nothing to write")
+        if len(names) != len(values):
+            raise UpdateFailed("Cannot write registers: register list len is not the same as values")
+        start_reg = REGISTERS_BY_KEY.get(names[0])
+        expected = start_reg.address
+        for name in names:
+            reg = REGISTERS_BY_KEY.get(name, None)
+            if reg.address != expected:
+                raise UpdateFailed("Cannot write registers: registers must be contiguous")
+            expected += 1
+
+        raw_values: list[int] = []
+        for index, name in enumerate(names):
             reg = REGISTERS_BY_KEY.get(name, None)
             if not reg or not reg.writable:
                 raise ValueError(f"Register {name} is not writable")
-            raw = reg.write_converter(value) if reg.write_converter else value
-            try:
-                result = await self.connection.client.write_register(
-                    address=reg.address, value=raw, device_id=self.connection.slave
-                )
-            except ModbusException as err:
-                raise UpdateFailed(
-                    f"Modbus write failed (addr={reg.address}, value={raw}, error: {err})"
-                ) from err
-            if result.isError():
-                raise UpdateFailed(
-                    f"Modbus error (addr={reg.address}, value={raw}, error: {result})"
-                )
+            raw_values.append(
+                reg.write_converter(values[index]) if reg.write_converter else values[index])
 
-            if self.data is not None:
-                setattr(self.data, name, value)
+        try:
+            result = await self.connection.client.write_registers(
+                address=start_reg.address, values=raw_values, device_id=self.connection.slave
+            )
+        except ModbusException as err:
+            raise UpdateFailed(
+                f"Modbus write failed (addr={start_reg.address}, values={raw_values}, error: {err})"
+            ) from err
+        if result.isError():
+            raise UpdateFailed(
+                f"Modbus error (addr={start_reg.address}, values={raw_values}, error: {result})"
+            )
+
+        if self.data is not None:
+            for index, name in enumerate(names):
+                reg = REGISTERS_BY_KEY.get(name, None)
+                if not reg.is_complex:
+                    setattr(self.data, name, values[index])
+                else:
+                    _set_complex_register_data(self.data, reg, name, values[index])
+
+    async def async_write_registers(self, names: list[str], values: list[Any]) -> None:
+        async with self._lock:
+            await self._async_write_registers(names, values)
+
+    async def _async_read_register_block(self, address: int, count: int) -> list[int]:
+        try:
+            _LOGGER.debug(
+                "Reading block %d-%d (%d regs)", address, address + count - 1, count
+            )
+            resp = await self.connection.client.read_holding_registers(
+                address=address, count=count, device_id=self.connection.slave
+            )
+            _LOGGER.debug(
+                "Modbus response for %d-%d: isError=%s, registers=%s",
+                address,
+                address + count - 1,
+                resp.isError(),
+                resp.registers,
+            )
+            if resp.isError():
+                raise UpdateFailed(
+                    f"Modbus read error (addr={address}, count={count}, error: {resp})"
+                )
+            return resp.registers
+        except ModbusException as err:
+            self.connection.close()
+            self.connection.last_error = str(err)
+            raise UpdateFailed(
+                f"Modbus read failed (addr={address}, count={count}, error: {err})"
+            ) from err
 
     async def _async_update_data(self) -> WanasData:
         async with self._lock:
@@ -327,45 +432,22 @@ class WanasCoordinator(DataUpdateCoordinator[WanasData]):
                 )
 
             raw_values: dict[int, int] = {}
-            current_start: int | None = None
-            current_count: int | None = None
-
             try:
-                for start, count, block in GROUPED_REGISTERS:
-                    current_start, current_count = start, count
-                    _LOGGER.debug(
-                        "Reading block %d-%d (%d regs)", start, start + count - 1, count
-                    )
-                    resp = await self.connection.client.read_holding_registers(
-                        address=start, count=count, device_id=self.connection.slave
-                    )
-                    _LOGGER.debug(
-                        "Modbus response for %d-%d: isError=%s, registers=%s",
-                        start,
-                        start + count - 1,
-                        resp.isError(),
-                        resp.registers,
-                    )
-                    if resp.isError():
-                        raise UpdateFailed(
-                            f"Modbus read error (addr={start}, count={count}, error: {resp})"
-                        )
-
-                    for reg, val in zip(block, resp.registers):
+                for start, count, block in GROUPED_REGISTERS_NO_COMPLEX:
+                    registers = await self._async_read_register_block(address=start, count=count)
+                    for reg, val in zip(block, registers):
                         raw_values[reg.address] = val
 
-                return self._build_data(raw_values)
+                # get complex model specific registers ie. weekly schedule
+                extra_params = await _async_fetch_complex_registers(self, self.do_modbus_full_update)
 
-            except ModbusException as err:
-                self.connection.close()
-                self.connection.last_error = str(err)
-                raise UpdateFailed(
-                    f"Modbus read failed (addr={current_start}, count={current_count}, error: {err})"
-                ) from err
+                self.do_modbus_full_update = False
+
+                return self._build_data(raw_values, extra_params)
             except Exception as err:
                 raise UpdateFailed(f"Unexpected update error: {err}") from err
 
-    def _build_data(self, raw: dict[int, int]) -> WanasData:
+    def _build_data(self, raw: dict[int, int], extra_params: dict[str, Any]) -> WanasData:
         kwargs = {}
         for reg in REGISTERS:
             raw_val = raw.get(reg.address)
@@ -376,6 +458,7 @@ class WanasCoordinator(DataUpdateCoordinator[WanasData]):
                     _LOGGER.warning(
                         "Failed to convert %s (raw=%s): %s", reg.name, raw_val, e
                     )
+        kwargs.update(extra_params)
         return WanasData(**kwargs)
 
     async def _on_gateway_discovered(self, ip: str) -> None:
@@ -392,6 +475,7 @@ class WanasCoordinator(DataUpdateCoordinator[WanasData]):
                     data={**self._entry.data, CONF_HOST: ip},
                 )
 
+                self.do_modbus_full_update = True
                 self.hass.async_create_task(self.async_request_refresh())
             else:
                 _LOGGER.warning("Failed to connect to discovered IP %s", ip)
@@ -469,5 +553,9 @@ class WanasCoordinator(DataUpdateCoordinator[WanasData]):
             if self._retry_cancel is not None:
                 self._retry_cancel()
                 self._retry_cancel = None
+
+            if self._cancel_full_update_timer is not None:
+                self._cancel_full_update_timer()
+                self._cancel_full_update_timer = None
 
             self.connection.close()

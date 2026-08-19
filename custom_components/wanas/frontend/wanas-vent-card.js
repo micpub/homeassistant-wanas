@@ -10,6 +10,310 @@ const UiTileType = Object.freeze({
   NUMBER: 4
 });
 
+class ScheduleTimeEditor extends HTMLElement {
+  static get observedAttributes() {
+    return [
+      "min",
+      "max",
+      "min-value",
+      "max-value",
+      "start-enabled",
+      "end-enabled",
+      "time-format"
+    ];
+  }
+
+  constructor() {
+    super();
+    this.min = 0;
+    this.max = 1440;
+    this.start = 480;
+    this.end = 1020;
+    this.startEnabled = true;
+    this.endEnabled = true;
+    this.timeFormat = 24
+    this.attachShadow({ mode: "open" });
+  }
+
+  connectedCallback() {
+    this.min = Number(this.getAttribute("min") ?? 0);
+    this.max = Number(this.getAttribute("max") ?? 1440);
+    this.start = Number(this.getAttribute("min-value") ?? this.min);
+    this.end = Number(this.getAttribute("max-value") ?? this.max);
+    this.startEnabled = this.getAttribute("start-enabled") !== "false";
+    this.endEnabled = this.getAttribute("end-enabled") !== "false";
+    this.timeFormat = Number(this.getAttribute("time-format") ?? 24);
+
+    this.render();
+  }
+
+  render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        .wrapper {
+          padding: 0 16px;
+        }
+        .labels {
+          position: relative;
+          height: 32px;
+        }
+        .label {
+          position: absolute;
+          transform: translateX(-50%);
+          font-size: 12px;
+          white-space: nowrap;
+          color: var(--secondary-text-color);
+        }
+        .tick {
+          position: absolute;
+          top: 18px;
+          width: 1px;
+          height: 10px;
+          background: var(--divider-color);
+        }
+        .timeline {
+          position: relative;
+          height: 45px;
+          touch-action: none;
+          top: -12px;
+        }
+        .track {
+          position:absolute;
+          left: 0;
+          right: 0;
+          top: 18px;
+          height: 8px;
+          border-radius: 4px;
+          background: var(--divider-color);
+        }
+        .range {
+          position: absolute;
+          top: 18px;
+          height: 8px;
+          border-radius: 4px;
+          background: var(--primary-color);
+        }
+        .handle {
+          position: absolute;
+          top: 12px;
+          width: 20px;
+          height: 20px;
+          border: solid 0.125em;
+          border-color: var(--primary-text-color);
+          border-radius: 50%;
+          background: var(--primary-color);
+          transform: translateX(-50%);
+          touch-action: none;
+        }
+        .handle.disabled {
+          background: var(--disabled-text-color);
+          cursor: not-allowed;
+        }
+      </style>
+
+      <div class="wrapper">
+        <div class="labels"></div>
+        <div class="timeline">
+          <div class="track"></div>
+          <div class="range"></div>
+          <div class="handle start"></div>
+          <div class="handle end"></div>
+        </div>
+      </div>
+    `;
+    this.labels = this.shadowRoot.querySelector(".labels");
+    this.timeline = this.shadowRoot.querySelector(".timeline");
+    this.range = this.shadowRoot.querySelector(".range");
+    this.startHandle = this.shadowRoot.querySelector(".start");
+    this.endHandle = this.shadowRoot.querySelector(".end");
+    if (!this.startEnabled)
+      this.startHandle.classList.add("disabled");
+    if (!this.endEnabled)
+      this.endHandle.classList.add("disabled");
+    this.createLabels();
+
+    if (this.startEnabled) {
+      this.startHandle.addEventListener(
+        "pointerdown",
+        e => this.drag(e,"start")
+      );
+    }
+    if (this.endEnabled) {
+      this.endHandle.addEventListener(
+        "pointerdown",
+        e => this.drag(e,"end")
+      );
+    }
+
+    this.update();
+
+  }
+
+  createLabels() {
+    this.labels.innerHTML = "";
+    // create labels every 6 hours but only inside min/max range
+    const firstHour = Math.ceil(this.min / 60 / 6) * 6;
+    const lastHour = Math.floor(this.max / 60 / 6) * 6;
+    let values = [];
+    for(let hour = firstHour; hour <= lastHour; hour += 6) {
+      values.push(hour * 60);
+    }
+
+    // add boundaries if not already present
+    if(!values.includes(this.min))
+      values.unshift(this.min);
+    if(!values.includes(this.max))
+      values.push(this.max);
+
+    values.forEach(value => {
+      const percent = this.toPercent(value);
+
+      const label = document.createElement("div");
+      label.className="label";
+      label.style.left = `${percent}%`;
+      label.textContent = this.minutesToTimeStr(value < 1440 ? value : 0);
+
+      const tick = document.createElement("div");
+      tick.className="tick";
+      tick.style.left = `${percent}%`;
+
+      this.labels.appendChild(label);
+      this.labels.appendChild(tick);
+    });
+  }
+
+  setValue(start,end) {
+    this.start=start;
+    this.end=end;
+    this.update();
+  }
+
+  update() {
+    const start = this.toPercent(this.start);
+    const end = this.toPercent(this.end);
+
+    this.startHandle.style.left = `${start}%`;
+    this.endHandle.style.left = `${end}%`;
+    this.range.style.left = `${start}%`;
+    this.range.style.width = `${end-start}%`;
+
+    const overlap = Math.abs(this.toPercent(this.start) - this.toPercent(this.end)) < 8;
+    if (overlap) {
+      if (!this.startEnabled) {
+        this.startHandle.style.zIndex = 1;
+        this.endHandle.style.zIndex = 2;
+      }
+      else if (!this.endEnabled) {
+        this.startHandle.style.zIndex = 2;
+        this.endHandle.style.zIndex = 1;
+      }
+      else {
+        // both enabled: keep the last dragged one on top
+        this.startHandle.style.zIndex = this.activeHandle === "start" ? 2 : 1;
+        this.endHandle.style.zIndex = this.activeHandle === "end" ? 2 : 1;
+      }
+    }
+    else {
+      this.startHandle.style.zIndex = 1;
+      this.endHandle.style.zIndex = 1;
+    }
+  }
+
+  toPercent(value) {
+    return (value-this.min) / (this.max-this.min) * 100;
+  }
+
+  drag(event, type) {
+    this.activeHandle = type;
+    const move = e => {
+      const rect = this.timeline.getBoundingClientRect();
+      let percent = (e.clientX - rect.left) / rect.width;
+      percent = Math.max(0, Math.min(1, percent));
+      let value = this.min + percent * (this.max - this.min);
+      // snap 15 minutes
+      value = Math.round(value / 15) * 15;
+      if(type === "start") {
+        if(value <= this.end - 15) {
+          // normal movement
+          this.start = value;
+        }
+        else {
+          if (!this.endEnabled) {
+            // end is fixed, stop at 15 minutes before it.
+            this.start = this.end - 15;
+          }
+          else{
+            // push end knob
+            const delta = value - this.start;
+            const newEnd = this.end + delta;
+            if(newEnd <= this.max) {
+              this.start = value;
+              this.end = newEnd;
+            }
+            else {
+              // hit max, keep 15 min gap
+              this.end = this.max;
+              this.start = this.max - 15;
+            }
+          }
+        }
+      }
+      else {
+        if(value >= this.start + 15) {
+          // normal movement
+          this.end = value;
+        }
+        else {
+          if (!this.startEnabled) {
+            // start is fixed, stop at 15 minutes after it.
+            this.end = this.start + 15;
+          }
+          else {
+            // push start knob
+            const delta = this.end - value;
+            const newStart = this.start - delta;
+            if(newStart >= this.min) {
+              this.end = value;
+              this.start = newStart;
+            }
+            else {
+              // hit min, keep 15 min gap
+              this.start = this.min;
+              this.end = this.min + 15;
+            }
+          }
+        }
+      }
+
+      this.update();
+      this.dispatchEvent(
+        new CustomEvent("change", { detail:{ start:this.start, end:this.end } })
+      );
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  minutesToTimeStr(minutes) {
+    minutes = Math.round(minutes);
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+
+    if (this.timeFormat === 12) {
+      const period = h >= 12 ? "PM" : "AM";
+      const hour = h % 12 || 12;
+      return `${hour.toString().padStart(2,'0')}:${m.toString().padStart(2, "0")}${period}`;
+    }
+
+    return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+  }
+}
+customElements.define("schedule-time-editor", ScheduleTimeEditor);
+
 class UiTileEntity extends LitElement {
   static properties = {
     hass: { attribute: false },
@@ -392,6 +696,7 @@ class WanasCard extends LitElement {
     _entityRegistry: { attribute: false },
     _settingsOpen: { type: Boolean },
     _wirelessSensorsOpen: { type: Boolean },
+    _weeklyScheduleOpen: { type: Boolean },
     _trDB: { state: false },
     _loadedLang: { state: false },
     readOnlySensors: { attribute: false },
@@ -407,8 +712,12 @@ class WanasCard extends LitElement {
     super();
     this._settingsOpen = false;
     this._wirelessSensorsOpen = true;
+    this._weeklyScheduleOpen = false;
     this._trDB = {};
     this._loadedLang = "";
+
+    this._dialog = null;
+    this.selectedDay = new Date().getDay(); // js uses same day numbering as dayOptions
   }
 
   get _settingsStorageKey() {
@@ -417,6 +726,10 @@ class WanasCard extends LitElement {
 
   get _wirelessSensorsStorageKey() {
     return this._config?.device ? `${this._config.device}_wirelessSensorsOpen` : null;
+  }
+
+  get _weeklyScheduleStorageKey() {
+    return this._config?.device ? `${this._config.device}_weeklyScheduleOpen` : null;
   }
 
   setConfig(config) {
@@ -510,6 +823,14 @@ class WanasCard extends LitElement {
             this._wirelessSensorsOpen = result === 'true';
           }
         }
+
+        const weeklyScheduleKey = this._weeklyScheduleStorageKey;
+        if (weeklyScheduleKey) {
+          let result = localStorage.getItem(weeklyScheduleKey)//returns null if not exists
+          if(result) {
+            this._weeklyScheduleOpen = result === 'true';
+          }
+        }
       }
     }
   }
@@ -579,7 +900,7 @@ class WanasCard extends LitElement {
       "extsen_co2th_humidity_dayzone", "extsen_co2th_humidity_nightzone",
       "extsen_th_temp_livingroom", "extsen_th_temp_bathroom1",
       "extsen_th_temp_bathroom2", "extsen_co2th_temp_dayzone",
-      "extsen_co2th_temp_nightzone"
+      "extsen_co2th_temp_nightzone", "weekly_schedule"
     ]);
 
     this.readWriteSwitches = this._fetchEntities(configDeviceId, [
@@ -918,6 +1239,280 @@ class WanasCard extends LitElement {
     ` : nothing;
   }
 
+  get dayOptions() {
+    return [
+      { key: 1, label: this.tr("Mo") },
+      { key: 2, label: this.tr("Tu") },
+      { key: 3, label: this.tr("We") },
+      { key: 4, label: this.tr("Th") },
+      { key: 5, label: this.tr("Fr") },
+      { key: 6, label: this.tr("Sa") },
+      { key: 0, label: this.tr("Su") }
+    ];
+  }
+
+  getDayData() {
+    const entity = this.hass.states[this.readOnlySensors.weekly_schedule.entity_id];
+    if (!entity?.attributes || typeof entity.attributes !== "object")
+      return [];
+
+    const dayZones = entity.attributes[String(this.selectedDay)];
+    if (!dayZones || typeof dayZones !== "object")
+      return [];
+
+    // create sorted array out of zones object
+    let zones = Object.entries(dayZones)
+      .map(([zoneIdStr, zone]) => ({
+        zoneId: Number(zoneIdStr),
+        start: zone.start,
+        speed: zone.speed,
+        comfort_temp: zone.comfort_temp,
+      }));
+
+    // calc 'to' for each zone
+    const slots = zones.map((zone, index) => {
+      const nextZone = zones[index + 1];
+      const end = nextZone ? nextZone.start : "00:00";
+      return {
+        ...zone,
+        from: zone.start,
+        to: end
+      };
+    });
+
+    return slots;
+  }
+
+  timeToMinutes(time) {
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + (m || 0);
+  }
+
+  minutesToTimeStr(minutes) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+
+    if (this.hass.locale?.time_format === "12") {
+      const period = h >= 12 ? "PM" : "AM";
+      const hour = h % 12 || 12;
+      return `${hour.toString().padStart(2,'0')}:${m.toString().padStart(2, "0")}${period}`;
+    }
+
+    return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+  }
+
+  showEditor(slot, field) {
+    if (this._dialog)
+      this._dialog.remove();
+
+    const editor = {
+      temp: {
+        title: this.tr("Set temperature"),
+        min: 10,
+        max: 30,
+        step: 1,
+        value: slot.comfort_temp,
+        vertical: true,
+        format: v => `${v}°C`,
+      },
+
+      speed: {
+        title: this.tr("Set speed"),
+        min: 0,
+        max: 3,
+        step: 1,
+        value: slot.speed,
+        vertical: true,
+        format: v => `${v}`,
+      },
+
+      time: {
+        title: this.tr("Set period"),
+        start: this.timeToMinutes(slot.from),
+        end: slot.zoneId < 5 ? this.timeToMinutes(slot.to) : 1440, 
+        format:(s,e)=>`${this.minutesToTimeStr(s)} ⟶ ${this.minutesToTimeStr(e < 1440 ? e : 0)}`,
+        min: (slot.zoneId -1) * 15 ,
+        max: 1440 - ((5 - slot.zoneId) * 15),
+        start_enabled: slot.zoneId > 1,
+        end_enabled: slot.zoneId < 5,
+        /*
+        step: 15,
+        vertical: false,
+        */
+      },
+    };
+    const cfg = editor[field];
+
+    this._dialog = document.createElement('ha-adaptive-dialog');
+    this._dialog.open = true;
+    this._dialog.flexContent = true;
+    this._dialog.type = 'standard';
+    this._dialog.width = 'small'; //small / medium(default) / large / full
+    this._dialog.headerTitle = cfg.title;
+    this._dialog.headerSubtitle = this.tr("Weekly schedule");
+    this._dialog.headerSubtitlePosition = 'above';
+    this._dialog.innerHTML = `
+      <div class="dialog-content" style="display: flex; flex-direction: column; gap: 30px; padding: 24px 0px;">
+        ${field != "time" ? `
+          <div id="value-label" style="text-align:center; font-size:1.8rem; font-weight:600;">
+            ${cfg.format(cfg.value)}
+          </div>
+          <ha-slider orientation="vertical" size="l" min="${cfg.min}" max="${cfg.max}" step="${cfg.step}" value="${cfg.value}"></ha-slider>
+        ` : `
+          <div id="value-label" style="text-align:center; font-size:1.8rem; font-weight:600;">
+            ${cfg.format(cfg.start, cfg.end)}
+          </div>
+          <schedule-time-editor
+            min=${cfg.min} max=${cfg.max}
+            start=${cfg.start} end=${cfg.end}
+            start-enabled=${cfg.start_enabled} end-enabled=${cfg.end_enabled}
+            time-format=${this.hass.locale?.time_format ?? "24"}
+          ></schedule-time-editor>
+        `}
+      </div>
+    `;
+    // add dialog to the DOM (outside card)
+    document.body.appendChild(this._dialog);
+
+
+    const valueLabel = this._dialog.querySelector('#value-label');
+    if(field==="time") {
+      let zoneId = slot.zoneId
+      let editedStart=cfg.start;
+      let editedEnd=cfg.end;
+      let valueEditedOnce = false;
+      const timeEditor = this._dialog.querySelector("schedule-time-editor");
+      timeEditor.setValue(cfg.start, cfg.end);
+      timeEditor.addEventListener(
+        "change",
+        e=>{
+          valueEditedOnce = true;
+          editedStart = e.detail.start;
+          editedEnd = e.detail.end;
+          valueLabel.textContent = cfg.format(editedStart, editedEnd);
+        }
+      );
+      this._dialog.addEventListener("closed", async () => {
+        if(valueEditedOnce){
+          await this.hass.callService(
+            DOMAIN,
+            "update_weekly_schedule_zone",
+            {
+              day: this.selectedDay,
+              zone: zoneId,
+              start: editedStart,
+              end: editedEnd
+            },
+            {
+              device_id: this._config.device
+            }
+          );
+        }
+        this._dialog.remove();
+        this._dialog = null;
+      });
+    }
+    else {
+      const slider = this._dialog.querySelector('ha-slider');
+      let valueEditedOnce = false;
+      let zoneId = slot.zoneId
+      let editedValue = Number(slider.value);
+      slider.addEventListener('input', () => {
+        valueEditedOnce = true;
+        editedValue = Number(slider.value);
+        valueLabel.textContent = cfg.format(editedValue);
+      });
+      this._dialog.addEventListener("closed", async () => {
+        if(valueEditedOnce){
+          await this.hass.callService(
+            DOMAIN,
+            "update_weekly_schedule_zone",
+            {
+              day: this.selectedDay,
+              zone: zoneId,
+              [field]: editedValue
+            },
+            {
+              device_id: this._config.device
+            }
+          );
+        }
+        this._dialog.remove();
+        this._dialog = null;
+      });
+    }
+  }
+
+  _renderWeeklySchedule() {
+    const slots = this.getDayData();
+    return html`
+      <div class="tiles-container-title">
+        <ha-icon icon="mdi:calendar-week"></ha-icon>
+        <div>${this.tr("Weekly schedule")}</div>
+        <ha-switch
+          .disabled=${false}
+          @change=${(e) => {
+            this._weeklyScheduleOpen = e.target.checked;
+            const key = this._weeklyScheduleStorageKey;
+            if (key) {
+              localStorage.setItem(key, this._weeklyScheduleOpen);
+            }
+          }}
+          .checked=${this._weeklyScheduleOpen}
+          .haptic=${true}
+          class="dropdown-section-switch"
+        ></ha-switch>
+      </div>
+      <div class="dropdown-section-wrapper ${this._weeklyScheduleOpen ? 'open' : ''}">
+        <div class="dropdown-section-inner">
+          <div class="day-selector" style="display:grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin-top: 10px; margin-bottom: 5px;">
+            ${this.dayOptions.map(day => html`
+              <!-- default or filled -->
+              <ha-button
+                size="s"
+                style="min-width:0;"
+                .appearance=${this.selectedDay === day.key ? "accent" : "filled"}
+                @click=${() => { this.selectedDay = day.key; this.requestUpdate(); }}
+              >
+                ${day.label}
+              </ha-button>
+            `)}
+          </div>
+
+          <div class="ws-grid">
+            <div class="ws-grid-header">${this.tr("Period")}</div>
+            <div class="ws-grid-header">${this.tr("Speed")}</div>
+            <div class="ws-grid-header">${this.tr("Temperature")}</div>
+
+            ${slots.map(slot => html`
+              <div
+                  class="ws-grid-cell text clickable"
+                  @click=${() => this.showEditor(slot, "time")}
+              >
+                <ha-ripple .recenters=${true}></ha-ripple>
+                <span>${this.minutesToTimeStr(this.timeToMinutes(slot.from))} ⟶ ${this.minutesToTimeStr(this.timeToMinutes(slot.to))}</span>
+              </div>
+              <div
+                  class="ws-grid-cell text clickable"
+                  @click=${() => this.showEditor(slot, "speed")}
+              >
+                <ha-ripple .recenters=${true}></ha-ripple>
+                <span>${slot.speed}</span>
+              </div>
+              <div
+                  class="ws-grid-cell text clickable"
+                  @click=${() => this.showEditor(slot, "temp")}
+              >
+                <ha-ripple .recenters=${true}></ha-ripple>
+                <span>${slot.comfort_temp}°C</span>
+              </div>
+            `)}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   _renderSettings() {
     const tiles = [
       { funcKey: 'ghe_func_enabled', entityMap: this.readWriteSwitches, key: 'ghe_mode', type: UiTileType.SWITCH },
@@ -986,6 +1581,7 @@ class WanasCard extends LitElement {
         ${this._renderMainArea()}
         ${this._renderStatusTiles()}
         ${this._renderWirelessSensors()}
+        ${this._renderWeeklySchedule()}
         ${this._renderSettings()}
       </ha-card>
     `;
@@ -1046,6 +1642,11 @@ class WanasCard extends LitElement {
     .clickable {
       cursor: pointer;
     }
+    /*
+    .clickable:hover {
+      transform: scale(1.03);
+    }
+    */
     .top-row {
       display: flex;
       justify-content: space-between;
@@ -1167,6 +1768,50 @@ class WanasCard extends LitElement {
     }
     .dropdown-section-switch {
       margin-left: 10px;
+    }
+    /* weekly schedule */
+    .ws-grid {
+      container-type: inline-size;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      border: 1px solid color-mix(in srgb, var(--primary-color) 13%, transparent);
+      border-radius: var(--ha-card-border-radius, 12px);
+      overflow: hidden;
+    }
+    .ws-grid-header {
+      background: color-mix(in srgb, var(--primary-color) 13%, transparent);
+      text-align: center;
+      padding: 12px 8px;
+      font-weight: 600;
+      font-size: 1rem; /* fallback */
+      font-size: clamp(0.8rem, 3.8cqw, 1.1rem);
+    }
+    .ws-grid-cell {
+      background: color-mix(in srgb, var(--primary-color) 3%, transparent);
+      border-right: 1px solid color-mix(in srgb, var(--primary-color) 13%, transparent);
+      border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 13%, transparent);
+      padding: 14px 8px;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .ws-grid-cell span {
+      position: relative;
+      z-index: 1;
+    }
+    .ws-grid-cell.text {
+      font-size: 1rem; /* fallback */
+      font-size: clamp(0.8rem, 3.8cqw, 1.1rem);
+      font-weight: 600;
+    }
+    .ws-grid-cell:nth-child(3n) {
+      border-right: none;
+    }
+    .ws-grid-cell:nth-last-child(-n + 3) {
+      border-bottom: none;
     }
   `;
 }

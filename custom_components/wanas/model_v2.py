@@ -1,16 +1,27 @@
 from __future__ import annotations
 
-from typing import Callable, Any, Optional
-from dataclasses import dataclass
+import asyncio
+from typing import Callable, Any, Optional, TYPE_CHECKING
+from dataclasses import dataclass, field
+from copy import deepcopy
 from datetime import date, time
 
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.const import UnitOfTime, UnitOfTemperature, UnitOfVolumeFlowRate
 from homeassistant.components.number import NumberMode
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.helpers import device_registry as dr
+from homeassistant.exceptions import HomeAssistantError
 
+if TYPE_CHECKING:
+    from .coordinator import WanasCoordinator
+from .const import DOMAIN
 from .register import Register
 from .modbus_helper import group_registers
 
+import logging
+_LOGGER = logging.getLogger(__name__)
 
 # ----------------------------------------------------------------------
 # Converters used in the registers list
@@ -57,6 +68,16 @@ def time_to_int(t: time) -> int:
     return (t.hour << 8) | t.minute
 
 
+def week_schedule_minutes_to_time(v: int) -> time:
+    if not isinstance(v, int) or not (0 <= v < 1440):
+        raise ValueError(f"Invalid schedule minute value: {v}")
+    return time(v // 60, v % 60)
+
+
+def week_schedule_time_to_minutes(t: time) -> int:
+    return t.hour * 60 + t.minute
+
+
 # ----------------------------------------------------------------------
 # Converters used in the registers list with workarounds
 # there is no way to tell if the external sensor is connected or not
@@ -92,9 +113,311 @@ def ext_sensor_co2th_and_th_temp_from_raw(v: int) -> float | None:
 
 
 # ----------------------------------------------------------------------
+# Helper weekly schedule functions
+# ----------------------------------------------------------------------
+ZONE_MIN_STEP = 15
+DAY_END = 24 * 60
+
+def adjust_schedule(zones, zone_num, new_start, new_end):
+    """
+    zones:
+        dict[int, ScheduleZone]
+    zone_num:
+        1..5
+    new_start/new_end:
+        minutes
+    Returns:
+        adjusted_zone_nums
+        adjusted_zone_values
+    adjusted_zones: [
+        zone_number
+        ...
+    ]
+    adjusted_zone_values: [
+        time
+        ...
+    ]
+    """
+
+    # build start table
+    starts = {
+        z: week_schedule_time_to_minutes(zones[z].start)
+        for z in range(1, 6)
+    }
+
+    # apply requested edit
+    if zone_num > 1:
+        starts[zone_num] = new_start
+    if zone_num < 5:
+        starts[zone_num + 1] = new_end
+
+    # expand left if needed
+    for z in range(zone_num - 1, 0, -1):
+        if starts[z + 1] - starts[z] >= ZONE_MIN_STEP:
+            continue
+        starts[z] = starts[z + 1] - ZONE_MIN_STEP
+    starts[1] = 0
+
+    # expand right if needed
+    for z in range(zone_num + 1, 6):
+        previous_end = starts[z]
+        next_start = DAY_END if z == 5 else starts[z + 1]
+        if next_start - previous_end >= ZONE_MIN_STEP:
+            continue
+        if z < 5:
+            starts[z + 1] = previous_end + ZONE_MIN_STEP
+
+    # clamp from right
+    starts[5] = min(starts[5], DAY_END - ZONE_MIN_STEP)
+
+    # clamp backwards
+    for z in range(4, 0, -1):
+        max_start = starts[z + 1] - ZONE_MIN_STEP
+        if starts[z] > max_start:
+            starts[z] = max_start
+    starts[1] = 0
+
+    # build returns
+    adjusted_zone_nums = []
+    adjusted_zone_values = []
+    for z in range(2, 6):
+        old = week_schedule_time_to_minutes(zones[z].start)
+        new = starts[z]
+        if old != new:
+            adjusted_zone_nums.append(z)
+            adjusted_zone_values.append(week_schedule_minutes_to_time(new))
+
+    return adjusted_zone_nums, adjusted_zone_values
+
+
+def _get_coordinator_for_device(hass: HomeAssistant, call: ServiceCall) -> WanasCoordinator:
+    """Get the coordinator for the targeted Wanas device."""
+
+    device_ids = call.data.get("device_id")
+    if not device_ids:
+        raise HomeAssistantError(
+            "A Wanas device must be specified as the target."
+        )
+
+    if isinstance(device_ids, str):
+        device_id = device_ids
+    elif len(device_ids) == 1:
+        device_id = device_ids[0]
+    else:
+        raise HomeAssistantError(
+            "Exactly one Wanas device must be targeted."
+        )
+
+    device = dr.async_get(hass).async_get(device_id)
+    if device is None:
+        raise HomeAssistantError(
+            f"Unknown Wanas device: {device_id}"
+        )
+
+    entry_id = device.config_entry_id
+    if entry_id is None:
+        raise HomeAssistantError(
+            f"Wanas device {device_id} has no config entry."
+        )
+
+    data = hass.data.get(DOMAIN, {}).get(entry_id)
+    if data is None:
+        raise HomeAssistantError(
+            f"Wanas config entry {entry_id} is not loaded."
+        )
+    try:
+        return data["coordinator"]
+    except KeyError as err:
+        raise HomeAssistantError(
+            f"No coordinator found for Wanas device {device_id}."
+        ) from err
+
+async def async_model_register_services(hass: HomeAssistant):
+    async def async_update_weekly_schedule_zone(call: ServiceCall):
+        coordinator = _get_coordinator_for_device(hass, call)
+        async with coordinator.locked():
+            # important: call these modbus writes under one lock
+            # to prevent day change by periodic updates between the calls
+
+            day = int(call.data["day"])
+            zone = int(call.data["zone"])
+            # optional fields
+            def optional_int(value):
+                return None if value is None else int(value)
+            start = optional_int(call.data.get("start"))
+            end = optional_int(call.data.get("end"))
+            speed = optional_int(call.data.get("speed"))
+            temp = optional_int(call.data.get("temp"))
+
+            adjusted_zone_nums: list[int] = []
+            adjusted_zone_values: list[int] = []
+            single_writes: dict[str, int] = {}
+            if start is not None and end is not None:
+                if zone == 1:
+                    boundary_reg = REGISTERS_BY_KEY["zone2_start"]
+                    step = boundary_reg.write_value_step
+                    min_start = boundary_reg.min - step
+                    max_end = boundary_reg.max - step
+                else:
+                    boundary_reg = REGISTERS_BY_KEY[f"zone{zone}_start"]
+                    step = boundary_reg.write_value_step
+                    min_start = boundary_reg.min
+                    max_end = boundary_reg.max
+                start = max(min(start, max_end - step), min_start)
+                end = min(max(end, start + step), max_end)
+
+                if coordinator.data is None:
+                    raise HomeAssistantError(
+                        "update_weekly_schedule_zone: coordinator data is not available"
+                    )
+                if day not in coordinator.data.weekly_schedule:
+                    raise HomeAssistantError(
+                        f"update_weekly_schedule_zone: day {day} "
+                        "is not available in the weekly schedule"
+                    )
+
+                adjusted_zone_nums, adjusted_zone_values = adjust_schedule(
+                    zones=coordinator.data.weekly_schedule[day],
+                    zone_num=zone,
+                    new_start=start,
+                    new_end=end,
+                )
+            if speed is not None:
+                single_writes[f"zone{zone}_fan_speed"] = speed
+            if temp is not None:
+                single_writes[f"zone{zone}_temperature"] = temp
+
+            # nothing to do?
+            if not adjusted_zone_nums and not single_writes:
+                return
+
+            await coordinator._async_write_register("weekly_schedule_day", day)
+            # check
+            for attempt in range(5):  # 5 retries
+                regs = await coordinator._async_read_register_block(address=8, count=1)
+                if regs[0] == day:
+                    break
+                await asyncio.sleep(0.05 + attempt * 0.03)
+            else:
+                raise UpdateFailed(f"Failed to switch weekly schedule day to {day}")
+
+            # write zones
+            if adjusted_zone_nums:
+                await coordinator._async_write_registers(
+                    [f"zone{num}_start" for num in adjusted_zone_nums],
+                    adjusted_zone_values,
+                )
+
+            # write speed / temp
+            for reg_name, value in single_writes.items():
+                await coordinator._async_write_register(reg_name, value)
+
+            # refresh
+            coordinator.async_set_updated_data(deepcopy(coordinator.data))
+            coordinator.do_modbus_full_update = True
+            hass.async_create_task(coordinator.async_refresh())
+
+
+    hass.services.async_register(
+        DOMAIN,
+        "update_weekly_schedule_zone",
+        async_update_weekly_schedule_zone,
+    )
+
+
+def _parse_schedule_day(raw: dict[int,int]) -> dict[int, ScheduleZone]:
+    zones: dict[int, ScheduleZone] = {}
+    for i in range(5):  # 5 zones
+        zones[i + 1] = ScheduleZone(
+            start=week_schedule_minutes_to_time(raw.get(9 + i)) if i > 0 else time(hour=0, minute=0),
+            speed=raw.get(14 + i),
+            comfort_temp=raw.get(19 + i),
+        )
+    return zones
+
+
+async def _async_fetch_weekly_schedule(coordinator: "WanasCoordinator") -> dict[int, dict[int, ScheduleZone]]:
+    schedule: dict[int, dict[int, ScheduleZone]] = {}
+    try:
+        for day in range(7):
+            # set day (register 8)
+            await coordinator._async_write_register("weekly_schedule_day", day)
+            # check
+            for attempt in range(5):  # 5 retries
+                regs = await coordinator._async_read_register_block(address=8, count=1)
+                if regs[0] == day:
+                    break
+                await asyncio.sleep(0.05 + attempt * 0.03)
+            else:
+                raise UpdateFailed(f"Failed to switch weekly schedule day to {day}")
+
+            # read registers 8-23
+            start_address = 8
+            raw_list = await coordinator._async_read_register_block(address=start_address, count=16)
+            raw = {
+                start_address + i: value
+                for i, value in enumerate(raw_list)
+            }
+            schedule[day] = _parse_schedule_day(raw)
+    finally:  # restore controller to current weekday
+        try:
+            today = (date.today().weekday() + 1) % 7  # convert python -> wanas day numeration
+            await coordinator._async_write_register("weekly_schedule_day", today)
+        except Exception:
+            _LOGGER.warning("Failed to restore weekly_schedule_day", exc_info=True)
+    return schedule
+
+
+async def _async_fetch_complex_registers(coordinator: "WanasCoordinator", full_update: bool) -> dict[str, Any]:
+    weekly_schedule = None
+    if full_update:
+        weekly_schedule = await _async_fetch_weekly_schedule(coordinator)
+    else:
+        weekly_schedule = (
+            coordinator.data.weekly_schedule
+            if coordinator.data is not None
+            else {}
+        )
+
+    return { "weekly_schedule": weekly_schedule }
+
+
+def _set_complex_register_data(data: WanasData, reg: Register, name: str, value: Any):
+    if 10 <= reg.address <= 23:  # weekly schedule
+        if data.weekly_schedule_day not in data.weekly_schedule:
+            data.weekly_schedule[data.weekly_schedule_day] = {}
+            for zone_id in range(1, 6):
+                data.weekly_schedule[data.weekly_schedule_day][zone_id] = ScheduleZone(
+                    start = time(hour=0, minute=0) if zone_id == 1 else None,
+                    speed = None,
+                    comfort_temp = None,
+                )
+
+        day_data = data.weekly_schedule[data.weekly_schedule_day]
+        if 10 <= reg.address <= 13:  # zone start times
+            zone = reg.address - 8  # its correct, there is no first zone start - as its always 00:00
+            day_data[zone].start = value
+        elif 14 <= reg.address <= 18:  # zone fan speeds
+            zone = reg.address - 13
+            day_data[zone].speed = value
+        elif 19 <= reg.address <= 23:  # zone temperatures
+            zone = reg.address - 18
+            day_data[zone].comfort_temp = value
+    else:
+        raise ValueError(f"Unhandled complex register[{reg.address}: {name}] data write")
+
+# ----------------------------------------------------------------------
 # Make sure to match 'key' param of register list, WanasData data class
 # and the entity definitions
 # ----------------------------------------------------------------------
+
+@dataclass
+class ScheduleZone:
+    start: time | None = None
+    speed: int | None = None
+    comfort_temp: float | None = None
+
+
 @dataclass
 class WanasData:
     supply_airflow: int
@@ -105,6 +428,7 @@ class WanasData:
     exhaust_temp: float
     supply_temp: float
     extract_temp: float
+    weekly_schedule_day: int
     extra_temp: float
     ghe: bool
     summer_bypass: bool
@@ -146,6 +470,7 @@ class WanasData:
     service_menu: int
     manual_fan_speed: int
     manual_comfort_temp: int
+    weekly_schedule: dict[int, dict[int, ScheduleZone]] = field(default_factory=dict)  # key: day 0-6, key: zone 1-5
 
 
 REGISTERS: list[Register] = sorted(
@@ -161,6 +486,160 @@ REGISTERS: list[Register] = sorted(
         Register(5, "exhaust_temp", temp_from_raw, min=0, max=65535),
         Register(6, "supply_temp", temp_from_raw, min=0, max=65535),
         Register(7, "extract_temp", temp_from_raw, min=0, max=65535),
+        # read-write manual feature control
+        Register(
+            8,
+            "weekly_schedule_day",
+            identity,
+            min=0,
+            max=6,
+            writable=True,
+            write_converter=lambda v: int(v),
+        ),
+        Register(
+            10,
+            "zone2_start",
+            week_schedule_minutes_to_time,
+            min=15,
+            max=1395,
+            writable=True,
+            write_value_step=15,
+            write_converter=week_schedule_time_to_minutes,
+            is_complex=True,
+        ),
+        Register(
+            11,
+            "zone3_start",
+            week_schedule_minutes_to_time,
+            min=30,
+            max=1410,
+            writable=True,
+            write_value_step=15,
+            write_converter=week_schedule_time_to_minutes,
+            is_complex=True,
+        ),
+        Register(
+            12,
+            "zone4_start",
+            week_schedule_minutes_to_time,
+            min=45,
+            max=1425,
+            writable=True,
+            write_value_step=15,
+            write_converter=week_schedule_time_to_minutes,
+            is_complex=True,
+        ),
+        Register(
+            13,
+            "zone5_start",
+            week_schedule_minutes_to_time,
+            min=60,
+            max=1440,
+            writable=True,
+            write_value_step=15,
+            write_converter=week_schedule_time_to_minutes,
+            is_complex=True,
+        ),
+        Register(
+            14,
+            "zone1_fan_speed",
+            identity,
+            min=0,
+            max=3,
+            writable=True,
+            write_converter=lambda v: int(v),
+            is_complex=True,
+        ),
+        Register(
+            15,
+            "zone2_fan_speed",
+            identity,
+            min=0,
+            max=3,
+            writable=True,
+            write_converter=lambda v: int(v),
+            is_complex=True,
+        ),
+        Register(
+            16,
+            "zone3_fan_speed",
+            identity,
+            min=0,
+            max=3,
+            writable=True,
+            write_converter=lambda v: int(v),
+            is_complex=True,
+        ),
+        Register(
+            17,
+            "zone4_fan_speed",
+            identity,
+            min=0,
+            max=3,
+            writable=True,
+            write_converter=lambda v: int(v),
+            is_complex=True,
+        ),
+        Register(
+            18,
+            "zone5_fan_speed",
+            identity,
+            min=0,
+            max=3,
+            writable=True,
+            write_converter=lambda v: int(v),
+            is_complex=True,
+        ),
+        Register(
+            19,
+            "zone1_temperature",
+            identity,
+            min=10,
+            max=30,
+            writable=True,
+            write_converter=lambda v: int(v),
+            is_complex=True,
+        ),
+        Register(
+            20,
+            "zone2_temperature",
+            identity,
+            min=10,
+            max=30,
+            writable=True,
+            write_converter=lambda v: int(v),
+            is_complex=True,
+        ),
+        Register(
+            21,
+            "zone3_temperature",
+            identity,
+            min=10,
+            max=30,
+            writable=True,
+            write_converter=lambda v: int(v),
+            is_complex=True,
+        ),
+        Register(
+            22,
+            "zone4_temperature",
+            identity,
+            min=10,
+            max=30,
+            writable=True,
+            write_converter=lambda v: int(v),
+            is_complex=True,
+        ),
+        Register(
+            23,
+            "zone5_temperature",
+            identity,
+            min=10,
+            max=30,
+            writable=True,
+            write_converter=lambda v: int(v),
+            is_complex=True,
+        ),
         # readonly current temperature - optional extra sensor
         Register(29, "extra_temp", temp_from_raw, min=0, max=65535),
         # readonly current feature state
@@ -364,8 +843,8 @@ REGISTERS_BY_ADDRESS = {reg.address: reg for reg in REGISTERS}
 REGISTERS_BY_KEY = {reg.name: reg for reg in REGISTERS}
 
 # Calc groups of registers - optimization to read more modbus registers at once
-GROUPED_REGISTERS = group_registers(REGISTERS)
-
+GROUPED_REGISTERS = group_registers(REGISTERS, include_complex_regs=True)
+GROUPED_REGISTERS_NO_COMPLEX = group_registers(REGISTERS, include_complex_regs=False)
 
 # HASS entity definitions
 
@@ -541,6 +1020,17 @@ SENSOR_TYPES = [
         SensorDeviceClass.TEMPERATURE,
         SensorStateClass.MEASUREMENT,
         lambda x: "mdi:thermometer",
+    ),
+]
+
+DIAGNOSTIC_SENSOR_TYPES = [
+    # key, unit, device_class, state_class, icon_lambda
+    (
+        "weekly_schedule_day",
+        None,
+        None,
+        None,
+        lambda x: "mdi:calendar-search",
     ),
 ]
 

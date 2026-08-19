@@ -1,5 +1,5 @@
-[![Static Badge](https://img.shields.io/badge/HACS-Custom-41BDF5?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=white)](https://hacs.xyz/)
-[![GitHub Release](https://img.shields.io/github/v/release/micpub/homeassistant-wanas?style=for-the-badge)](https://github.com/micpub/homeassistant-wanas/releases)
+[![Static Badge](https://img.shields.io/badge/HACS-Default-blue?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=white)](https://hacs.xyz/)
+[![GitHub Release](https://img.shields.io/github/v/release/micpub/homeassistant-wanas?style=for-the-badge&color=blue)](https://github.com/micpub/homeassistant-wanas/releases)
 
 
 # Home Assistant integration for Wanas heat recovery ventilators (HRV) with "Display V2" controller
@@ -26,6 +26,8 @@ On the card you will find:
 
 - **Errors** – current issues
 - **Current status** – fan speeds, temperatures, active modes and modules
+- **Extra remote sensors** –  temperature, humidity and CO₂
+- **Weekly schedule** – device operation schedule
 - **Settings** – quick switching of modes and functions
 
 
@@ -85,6 +87,8 @@ Na karcie znajdziesz:
 
 - **Błędy** – aktualne komunikaty o problemach
 - **Aktualny stan** – obroty wentylatorów, temperatury, aktywne tryby i moduły
+- **Dodatkowe zdalne czujniki** – temperatury, wilgotności i CO₂
+- **Harmonogram tygodniowy** – harmonogram pracy urządzenia
 - **Ustawienia** – szybka zmiana trybów i funkcji
 
 

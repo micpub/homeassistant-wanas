@@ -78,7 +78,10 @@
       "extsen_th_temp_bathroom1": { "name": "Bathroom 1 temperature" },
       "extsen_th_temp_bathroom2": { "name": "Bathroom 2 temperature" },
       "extsen_co2th_temp_dayzone": { "name": "Day zone temperature" },
-      "extsen_co2th_temp_nightzone": { "name": "Night zone temperature" }
+      "extsen_co2th_temp_nightzone": { "name": "Night zone temperature" },
+
+      "weekly_schedule": { "name": "Weekly schedule" },
+      "weekly_schedule_day": { "name": "Day of the week" }
     },
     "binary_sensor": {
       "ghe": { "name": "GHE" },

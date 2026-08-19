@@ -16,3 +16,4 @@ class Register:
     writable: bool = False  # True -> will also expose write helper
     write_value_step: int = 1
     write_converter: Callable[[Any], int] | None = None
+    is_complex: bool = False

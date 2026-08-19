@@ -25,7 +25,7 @@ from .const import (
     PLATFORMS,
 )
 from .coordinator import WanasCoordinator
-from .model_v2 import REGISTERS
+from .model_v2 import REGISTERS, async_model_register_services
 from .frontend import WanasCardRegistration
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,6 +40,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # store it so async_unload() can clean it up.
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN]["cards"] = cards
+
+    # register services
+    await async_model_register_services(hass)
 
     return True
 

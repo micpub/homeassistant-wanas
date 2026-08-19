@@ -5,10 +5,18 @@ from .register import Register
 
 def group_registers(
     registers: Iterable[Register],
+    include_complex_regs: bool,
 ) -> List[Tuple[int, int, list[Register]]]:
 
     blocks: List[Tuple[int, int, list[Register]]] = []
-    sorted_regs = sorted(registers, key=lambda r: r.address)
+    sorted_regs = sorted(
+        (
+            registers
+            if include_complex_regs
+            else (r for r in registers if not r.is_complex)
+        ),
+        key=lambda r: r.address,
+    )
 
     for reg in sorted_regs:
         if not blocks or blocks[-1][0] + blocks[-1][1] != reg.address:
