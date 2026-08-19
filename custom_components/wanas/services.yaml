@@ -2,11 +2,15 @@ update_weekly_schedule_zone:
   name: Update weekly schedule zone
   description: Update one or more parameters of a weekly schedule zone.
 
-  target:
-    device:
-      integration: wanas
-
   fields:
+    device_id:
+      name: Device
+      description: Wanas device
+      required: true
+      selector:
+        device:
+          integration: wanas
+
     day:
       name: Day
       description: Day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday).

@@ -1398,13 +1398,11 @@ class WanasCard extends LitElement {
             DOMAIN,
             "update_weekly_schedule_zone",
             {
+              device_id: this._config.device,
               day: this.selectedDay,
               zone: zoneId,
               start: editedStart,
               end: editedEnd
-            },
-            {
-              device_id: this._config.device
             }
           );
         }
@@ -1428,12 +1426,10 @@ class WanasCard extends LitElement {
             DOMAIN,
             "update_weekly_schedule_zone",
             {
+              device_id: this._config.device,
               day: this.selectedDay,
               zone: zoneId,
               [field]: editedValue
-            },
-            {
-              device_id: this._config.device
             }
           );
         }

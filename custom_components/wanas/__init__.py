@@ -28,6 +28,9 @@ from .coordinator import WanasCoordinator
 from .model_v2 import REGISTERS, async_model_register_services
 from .frontend import WanasCardRegistration
 
+from homeassistant.helpers import config_validation as cv
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 _LOGGER = logging.getLogger(__name__)
 
 
