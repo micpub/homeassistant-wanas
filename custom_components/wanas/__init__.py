@@ -31,6 +31,29 @@ from .frontend import WanasCardRegistration
 _LOGGER = logging.getLogger(__name__)
 
 
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the Wanas integration."""
+
+    # register card
+    cards = WanasCardRegistration(hass)
+    await cards.async_register()
+    # store it so async_unload() can clean it up.
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN]["cards"] = cards
+
+    return True
+
+
+async def async_unload(hass: HomeAssistant, config: ConfigEntry) -> bool:
+    """Unload the Wanas integration."""
+
+    cards = hass.data.get(DOMAIN, {}).pop("cards", None)
+    if cards is not None:
+        await cards.async_unregister()
+
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Wanas from a config entry."""
     host = entry.data.get(CONF_HOST, "")
@@ -86,9 +109,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_handle_stop_event)
 
-    cards = WanasCardRegistration(hass)
-    await cards.async_register()
-
     return True
 
 
@@ -99,8 +119,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data = hass.data[DOMAIN].pop(entry.entry_id)
     coordinator: WanasCoordinator = data["coordinator"]
     await coordinator.stop()
-
-    cards = WanasCardRegistration(hass)
-    await cards.async_unregister()
 
     return unload_ok
