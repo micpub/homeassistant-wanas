@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import timedelta, datetime
 from typing import Any, Callable, Dict, Awaitable
 
@@ -20,6 +20,7 @@ from homeassistant.helpers.device_registry import DeviceEntry
 from pymodbus.client import AsyncModbusTcpClient
 from pymodbus import ModbusException
 
+from .modbus_helper import group_registers, split_blocks
 from .register import Register
 from .model_v2 import (
     WanasData,
@@ -42,6 +43,17 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Longest single read. Keeps requests short for gateways that choke on long blocks.
+MAX_READ_COUNT = 16
+
+# Modbus exception 02: the controller has no register at this address. Older
+# firmware lacks the external sensor registers (55+), for example.
+ILLEGAL_DATA_ADDRESS = 2
+
+
+class UnsupportedRegisterError(UpdateFailed):
+    """The controller answered a read with "illegal data address"."""
 
 
 class ModbusConnection:
@@ -271,6 +283,8 @@ class WanasCoordinator(DataUpdateCoordinator[WanasData]):
         self._stopped = False
         self.device_entry = device
         self.hass_entity_prefix = hass_entity_prefix
+        # addresses this controller does not have; skipped on every later poll
+        self._unsupported: set[int] = set()
 
         self._cancel_full_update_timer: CALLBACK_TYPE | None = async_track_time_interval(
             hass,
@@ -410,6 +424,10 @@ class WanasCoordinator(DataUpdateCoordinator[WanasData]):
                 resp.registers,
             )
             if resp.isError():
+                if getattr(resp, "exception_code", None) == ILLEGAL_DATA_ADDRESS:
+                    raise UnsupportedRegisterError(
+                        f"Register not supported (addr={address}, count={count})"
+                    )
                 raise UpdateFailed(
                     f"Modbus read error (addr={address}, count={count}, error: {resp})"
                 )
@@ -420,6 +438,42 @@ class WanasCoordinator(DataUpdateCoordinator[WanasData]):
             raise UpdateFailed(
                 f"Modbus read failed (addr={address}, count={count}, error: {err})"
             ) from err
+
+    async def _async_read_registers(self, block: list[Register]) -> dict[int, int]:
+        """Read a run of registers, skipping the ones this controller does not have.
+
+        A read that hits a missing address fails as a whole, so that run is read
+        again one register at a time; the missing addresses are remembered and left
+        out from then on, and their entities stay unknown instead of the whole
+        device going unavailable.
+        """
+        wanted = [r for r in block if r.address not in self._unsupported]
+        values: dict[int, int] = {}
+        for start, count, regs in split_blocks(
+            group_registers(wanted, include_complex_regs=True), MAX_READ_COUNT
+        ):
+            try:
+                read = await self._async_read_register_block(address=start, count=count)
+            except UnsupportedRegisterError:
+                read = None
+            if read is not None:
+                values.update(zip((r.address for r in regs), read))
+                continue
+            for reg in regs:
+                try:
+                    (val,) = await self._async_read_register_block(
+                        address=reg.address, count=1
+                    )
+                except UnsupportedRegisterError:
+                    self._unsupported.add(reg.address)
+                    _LOGGER.info(
+                        "Register %d (%s) is not supported by this controller, skipping it",
+                        reg.address,
+                        reg.name,
+                    )
+                    continue
+                values[reg.address] = val
+        return values
 
     async def _async_update_data(self) -> WanasData:
         async with self._lock:
@@ -433,10 +487,8 @@ class WanasCoordinator(DataUpdateCoordinator[WanasData]):
 
             raw_values: dict[int, int] = {}
             try:
-                for start, count, block in GROUPED_REGISTERS_NO_COMPLEX:
-                    registers = await self._async_read_register_block(address=start, count=count)
-                    for reg, val in zip(block, registers):
-                        raw_values[reg.address] = val
+                for _start, _count, block in GROUPED_REGISTERS_NO_COMPLEX:
+                    raw_values.update(await self._async_read_registers(block))
 
                 # get complex model specific registers ie. weekly schedule
                 extra_params = await _async_fetch_complex_registers(self, self.do_modbus_full_update)
@@ -448,7 +500,8 @@ class WanasCoordinator(DataUpdateCoordinator[WanasData]):
                 raise UpdateFailed(f"Unexpected update error: {err}") from err
 
     def _build_data(self, raw: dict[int, int], extra_params: dict[str, Any]) -> WanasData:
-        kwargs = {}
+        # registers the controller does not have stay None (entity state unknown)
+        kwargs: dict[str, Any] = {f.name: None for f in fields(WanasData)}
         for reg in REGISTERS:
             raw_val = raw.get(reg.address)
             if raw_val is not None:
