@@ -81,7 +81,18 @@
       "extsen_co2th_temp_nightzone": { "name": "Night zone temperature" },
 
       "weekly_schedule": { "name": "Weekly schedule" },
-      "weekly_schedule_day": { "name": "Day of the week" }
+      "weekly_schedule_day": { "name": "Day of the week" },
+
+      "heat_recovery_power": {
+        "name": "Heat recovery power",
+        "state_attributes": {
+          "mode": { "name": "Mode", "state": { "heating": "Heat recovery", "cooling": "Cool recovery" } },
+          "temperature_gain": { "name": "Supply air temperature gain" },
+          "extract_side_power": { "name": "Extract side power" }
+        }
+      },
+      "heat_recovery_efficiency": { "name": "Heat recovery efficiency" },
+      "heat_recovery_energy": { "name": "Recovered energy" }
     },
     "binary_sensor": {
       "ghe": { "name": "GHE" },

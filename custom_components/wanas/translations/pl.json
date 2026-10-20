@@ -81,7 +81,18 @@
       "extsen_co2th_temp_nightzone": { "name": "Temperatura strefy nocnej" },
 
       "weekly_schedule": { "name": "Harmonogram tygodniowy" },
-      "weekly_schedule_day": { "name": "Dzień tygodnia" }
+      "weekly_schedule_day": { "name": "Dzień tygodnia" },
+
+      "heat_recovery_power": {
+        "name": "Moc odzysku ciepła",
+        "state_attributes": {
+          "mode": { "name": "Tryb", "state": { "heating": "Odzysk ciepła", "cooling": "Odzysk chłodu" } },
+          "temperature_gain": { "name": "Przyrost temperatury nawiewu" },
+          "extract_side_power": { "name": "Moc po stronie wywiewu" }
+        }
+      },
+      "heat_recovery_efficiency": { "name": "Sprawność odzysku ciepła" },
+      "heat_recovery_energy": { "name": "Energia odzyskana" }
     },
     "binary_sensor": {
       "ghe": { "name": "GWC" },
