@@ -140,6 +140,9 @@
     },
     "date": {
       "device_date": { "name": "Data urządzenia" }
+    },
+    "button": {
+      "sync_clock": { "name": "Ustaw zegar z Home Assistant" }
     }
   }
 }

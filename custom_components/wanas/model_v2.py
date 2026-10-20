@@ -4,7 +4,7 @@ import asyncio
 from typing import Callable, Any, Optional, TYPE_CHECKING
 from dataclasses import dataclass, field
 from copy import deepcopy
-from datetime import date, time
+from datetime import date, datetime, time
 
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.const import UnitOfTime, UnitOfTemperature, UnitOfVolumeFlowRate
@@ -1326,4 +1326,23 @@ DATE_TYPES = [
 TIME_TYPES = [
     # key, icon_lambda
     ("device_time", lambda x: "mdi:clock"),
+]
+
+
+# ----------------------------------------------------------------------
+# Button press actions
+# ----------------------------------------------------------------------
+async def _press_sync_clock(coordinator: "WanasCoordinator") -> None:
+    """Set the controller clock (registers 50/51) to Home Assistant's local time."""
+    now = datetime.now()
+    # both writes under one lock so a periodic poll cannot split date and time
+    async with coordinator.locked():
+        await coordinator._async_write_register("device_date", now.date())
+        await coordinator._async_write_register("device_time", now.time())
+    await coordinator.async_refresh()
+
+
+BUTTON_TYPES = [
+    # key, icon_lambda, press_coro
+    ("sync_clock", lambda x: "mdi:clock-check", _press_sync_clock),
 ]

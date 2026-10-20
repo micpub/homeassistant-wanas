@@ -150,6 +150,9 @@
     },
     "date": {
       "device_date": { "name": "Device date" }
-      }
+    },
+    "button": {
+      "sync_clock": { "name": "Sync clock with Home Assistant" }
+    }
   }
 }

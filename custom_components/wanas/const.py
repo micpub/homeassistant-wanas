@@ -26,6 +26,7 @@ MODE_MANUAL: Final = "manual"
 
 PLATFORMS = (
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.NUMBER,
     Platform.SENSOR,
     Platform.SWITCH,
